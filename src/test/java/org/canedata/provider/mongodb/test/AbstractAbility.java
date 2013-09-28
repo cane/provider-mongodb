@@ -1,5 +1,5 @@
 /**
- * Copyright 2012 Jlue.org
+ * Copyright 2012 CaneData.org
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ import com.mongodb.MongoException;
 
 /**
  * 
- * @author Sun Yat-ton (Mail:ImSunYitao@gmail.com)
+ * @author Sun Yat-ton
  * @version 1.00.000 2011-8-3
  */
 public abstract class AbstractAbility {
@@ -72,7 +72,6 @@ public abstract class AbstractAbility {
 	
 	protected void initProvider(){
 		try {
-			System.setProperty("MONGO.POOLSIZE", "800");
 			mongo = new MongoClient(host, port);
 		} catch (UnknownHostException e) {
 			throw new RuntimeException(e);

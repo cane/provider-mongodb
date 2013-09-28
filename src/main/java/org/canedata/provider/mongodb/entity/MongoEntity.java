@@ -224,18 +224,21 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             // cache
             if (null != getCache()) {
-                logger.debug("Puting fields to cache, cache key is {0} ...",
+                if(logger.isDebug())
+                    logger.debug("Puting fields to cache, cache key is {0} ...",
                         fields.getKey());
                 getCache().cache(fields);
             }
 
-            logger.debug(
+            if(logger.isDebug())
+                logger.debug(
                     "Created entity, Database is {0}, Collection is {1}, key is {2}.",
                     getSchema(), getName(), key);
 
             return fields;
         } catch (AnalyzeBehaviourException e) {
-            logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+            if(logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
                     e.getMessage());
 
             throw new DataAccessException(e);
@@ -298,18 +301,21 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             // cache
             if (null != getCache()) {
-                logger.debug("Puting fields to cache, cache key is {0} ...",
+                if(logger.isDebug())
+                    logger.debug("Puting fields to cache, cache key is {0} ...",
                         fields.getKey());
                 getCache().cache(fields);
             }
 
-            logger.debug(
+            if(logger.isDebug())
+                logger.debug(
                     "Created or Updated entity, Database is {0}, Collection is {1}, key is {2}.",
                     getSchema(), getName(), key);
 
             return fields;
         } catch (AnalyzeBehaviourException e) {
-            logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+            if(logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
                     e.getMessage());
 
             throw new DataAccessException(e);
@@ -335,7 +341,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     }
 
     public Fields restore(Serializable... keys) {
-        logger.debug(
+        if(logger.isDebug())
+            logger.debug(
                 "Restoring entity, Database is {0}, collection is {1}, key is {2}",
                 getSchema(), getName(), Arrays.toString(keys));
 
@@ -360,7 +367,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
                             break;
                         default:
-                            logger.warn(
+                                logger.warn(
                                     "Step {0} does not apply to activities restore, this step will be ignored.",
                                     step.step());
                     }
@@ -380,7 +387,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
                 MongoFields cachedFs = null;
                 if (getCache().isAlive(cacheKey)) {
-                    logger.debug(
+                    if(logger.isDebug())
+                        logger.debug(
                             "Restoring entity from cache, by cache key is {0} ...",
                             cacheKey);
 
@@ -395,7 +403,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                     cachedFs = new MongoFields(this, getIntent(), dbo);
                     getCache().cache(cachedFs);
 
-                    logger.debug(
+                    if(logger.isDebug())
+                        logger.debug(
                             "Restored entity and put to cache, cache key is {0}.",
                             cachedFs.getKey().toString());
                 }
@@ -404,7 +413,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             } else {// no cache
                 DBObject dbo = getCollection().findOne(bdbo, projection);
 
-                logger.debug("Restored entity, key is {0}, target is {1}.",
+                if(logger.isDebug())
+                    logger.debug("Restored entity, key is {0}, target is {1}.",
                         keys[0].toString(), dbo);
 
                 if (null == dbo)
@@ -415,7 +425,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
         } catch (NoSuchElementException nsee) {
             throw new EntityNotFoundException(this.getKey(), keys[0].toString());
         } catch (AnalyzeBehaviourException e) {
-            logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+            if(logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
                     e.getMessage());
 
             throw new RuntimeException(e);
@@ -484,7 +495,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
         if (keys == null || keys.length == 0)
             throw new IllegalArgumentException("You must specify the key!");
 
-        logger.debug(
+        if(logger.isDebug())
+            logger.debug(
                 "Existing entity, Database is {0}, Collection is {1}, key is {0}",
                 getSchema(), getName(), keys[0]);
 
@@ -495,7 +507,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             String cacheKey = getKey().concat("#").concat(keys[0].toString());
 
             if (getCache().isAlive(cacheKey)) {
-                logger.debug(
+                if(logger.isDebug())
+                    logger.debug(
                         "Restoring entity from cache, by cache key is {0} ...",
                         cacheKey);
 
@@ -551,7 +564,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     }
 
     public List<Fields> list(int offset, int count) {
-        logger.debug(
+        if(logger.isDebug())
+            logger.debug(
                 "Listing entities, Database is {0}, Collection is {1}, offset is {2}, count is {3}.",
                 getSchema(), getName(), offset, count);
         List<Fields> rlt = new ArrayList<Fields>();
@@ -672,7 +686,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     }
 
     public Fields findAndUpdate(Expression expr) {
-        logger.debug(
+        if(logger.isDebug())
+            logger.debug(
                 "Finding and updating entity, Database is {0}, Collection is {1} ...",
                 getSchema(), getName());
 
@@ -692,7 +707,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             BasicDBObject query = expFactory.parse((MongoExpression) expr);
 
-            logger.debug(
+            if(logger.isDebug())
+                logger.debug(
                     "Finding and updating entity, Database is {0}, Collection is {1}, expression is {2} ...",
                     getSchema(), getName(), query.toString());
 
@@ -715,7 +731,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             return new MongoFields(this, getIntent(), (BasicDBObject) rlt).project(projection.keySet());
         } catch (AnalyzeBehaviourException abe) {
-            logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
+            if(logger.isDebug())
+                logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
                     abe.getMessage());
 
             throw new RuntimeException(abe);
@@ -743,7 +760,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
                 Object id = dbo.get("_id");
 
-                logger.debug("Loaded data for missed cache hits, _id is {0}.",
+                if(logger.isDebug())
+                    logger.debug("Loaded data for missed cache hits, _id is {0}.",
                         id.toString());
 
                 MongoFields mf = missed.get(id).putTarget(dbo);
@@ -765,7 +783,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
      * @param projection will be ignored in mongodb.
      */
     public Number count(String projection) {
-        logger.debug(
+        if(logger.isDebug())
+            logger.debug(
                 "Listing entities, Database is {0}, Collection is {1}, offset is {2}, count is {3}.",
                 getSchema(), getName(), 0, 1);
         BasicDBObject options = new BasicDBObject();
@@ -784,7 +803,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             else
                 return getCollection().count(query);
         } catch (AnalyzeBehaviourException abe) {
-            logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
+            if(logger.isDebug())
+                logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
                     abe.getMessage());
 
             throw new RuntimeException(abe);
@@ -795,7 +815,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     }
 
     public List<Fields> distinct(String projection) {
-        logger.debug(
+        if(logger.isDebug())
+            logger.debug(
                 "Distincting entities, Database is {0}, Collection is {1}, column is {2} ...",
                 getSchema(), getName(), projection);
         List<Fields> rlt = new ArrayList<Fields>();
@@ -818,7 +839,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                 rlt.add(new MongoFields(this, getIntent(), projection, o));
             }
         } catch (AnalyzeBehaviourException abe) {
-            logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
+            if(logger.isDebug())
+                logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
                     abe.getMessage());
 
             throw new RuntimeException(abe);
@@ -1028,7 +1050,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     }
 
     public int update(Serializable... keys) {
-        logger.debug(
+        if(logger.isDebug())
+            logger.debug(
                 "Updating entitiy, Database is {0}, Collection is {1}, keys is {2}.",
                 getSchema(), getName(), Arrays.toString(keys));
 
@@ -1047,7 +1070,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                 public Tracer trace(Step step) throws AnalyzeBehaviourException {
                     switch (step.step()) {
                         case MongoStep.PUT:
-                            logger.debug(
+                            if(logger.isDebug())
+                                logger.debug(
                                     "Analyzing behivor PUT, step is {0}, purpose is {1}, scalar is {2}.",
                                     step.step(), step.getPurpose(),
                                     Arrays.toString(step.getScalar()));
@@ -1070,7 +1094,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
                             break;
                         default:
-                            logger.warn(
+                                logger.warn(
                                     "Step {0} does not apply to activities create, this step will be ignored.",
                                     step.step());
                     }
@@ -1109,7 +1133,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             return wr.getN();
         } catch (AnalyzeBehaviourException abe) {
-            logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
+            if(logger.isDebug())
+                logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
                     abe.getMessage());
 
             throw new RuntimeException(abe);
@@ -1119,7 +1144,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     }
 
     public int updateRange(Expression expr) {
-        logger.debug(
+        if(logger.isDebug())
+            logger.debug(
                 "Updating entities, Database is {0}, Collection is {1} ...",
                 getSchema(), getName());
 
@@ -1153,7 +1179,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
                             break;
                         default:
-                            logger.warn(
+                                logger.warn(
                                     "Step {0} does not apply to activities create, this step will be ignored.",
                                     step.step());
                     }
@@ -1166,7 +1192,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             final MongoExpressionFactory expFactory = new MongoExpressionFactory.Impl();
             BasicDBObject query = expFactory.parse((MongoExpression) expr);
 
-            logger.debug(
+            if(logger.isDebug())
+                logger.debug(
                     "Updating entities, Database is {0}, Collection is {1}, expression is {2} ...",
                     getSchema(), getName(), query.toString());
 
@@ -1192,7 +1219,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             return wr.getN();
         } catch (AnalyzeBehaviourException abe) {
-            logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
+            if(logger.isDebug())
+                logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
                     abe.getMessage());
 
             throw new RuntimeException(abe);
@@ -1209,7 +1237,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             return 0;
         }
 
-        logger.debug(
+        if(logger.isDebug())
+            logger.debug(
                 "Deleting entitiy, Database is {0}, Collection is {1}, keys is {2}.",
                 getSchema(), getName(), Arrays.toString(keys));
 
@@ -1240,7 +1269,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     }
 
     public int deleteRange(Expression expr) {
-        logger.debug(
+        if(logger.isDebug())
+            logger.debug(
                 "Deleting entities, Database is {0}, Collection is {1} ...",
                 getSchema(), getName());
 
@@ -1250,7 +1280,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             final MongoExpressionFactory expFactory = new MongoExpressionFactory.Impl();
             BasicDBObject query = expFactory.parse((MongoExpression) expr);
 
-            logger.debug(
+            if(logger.isDebug())
+                logger.debug(
                     "Deleting entities, Database is {0}, Collection is {1}, expression is {2} ...",
                     getSchema(), getName(), query.toString());
 
@@ -1266,7 +1297,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             return wr.getN();
         } catch (AnalyzeBehaviourException abe) {
-            logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
+            if(logger.isDebug())
+                logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
                     abe.getMessage());
 
             throw new RuntimeException(abe);

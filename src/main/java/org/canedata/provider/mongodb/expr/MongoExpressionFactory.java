@@ -74,7 +74,8 @@ public interface MongoExpressionFactory {
 
 			exprs.clear();
 
-			logger.debug("Expression is {0}.", query.toString());
+			if(logger.isDebug())
+                logger.debug("Expression is {0}.", query.toString());
 
 			return query;
 		}
@@ -84,14 +85,16 @@ public interface MongoExpressionFactory {
 			BasicDBObject query = new BasicDBObject();
 			parse(expr, query);
 
-			logger.debug("Expression is {0}.", query.toString());
+			if(logger.isDebug())
+                logger.debug("Expression is {0}.", query.toString());
 
 			return query;
 		}
 
 		protected void parse(MongoExpression exp, final BasicDBObject query)
 				throws ParseExpressionException {
-			logger.debug("Parsing expression:{0}", exp.toExprString());
+			if(logger.isDebug())
+                logger.debug("Parsing expression:{0}", exp.toExprString());
 
 			exp.parse(new Parser() {
 
@@ -105,7 +108,8 @@ public interface MongoExpressionFactory {
 
 							public Tracer trace(final Step step)
 									throws AnalyzeBehaviourException {
-								logger.debug(
+								if(logger.isDebug())
+                                    logger.debug(
 										"ExpreIntent#playback, step is {0}, purpose is {1}, values is {2}.",
 										step.getName(), step.getPurpose(),
 										step.getScalar());
@@ -274,7 +278,8 @@ public interface MongoExpressionFactory {
 									break;
 								case Operator.OR:
 								case Operator.OR_EPR:
-									logger.debug(
+									if(logger.isDebug())
+                                        logger.debug(
 											"When parsing expression met Operator.OR, The original information is :{0}.",
 											innerBdbo.toString());
 									if (query.size() == 0)

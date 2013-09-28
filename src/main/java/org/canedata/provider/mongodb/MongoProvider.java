@@ -93,7 +93,8 @@ public class MongoProvider implements CaneProvider {
 		EntityFactory ef = getFactory(name,
 				resourceProvider, cache);
 
-		logger.debug("Apply bench(name:{0}) to EntityFactory(name:{1}).",
+		if(logger.isDebug())
+            logger.debug("Apply bench(name:{0}) to EntityFactory(name:{1}).",
 				benchProvider.getName(), ef.getName());
 
 		Pointcut pointcut = benchProvider.getPointcut(Pointcut.Phase.FACTORY);

@@ -1,5 +1,5 @@
 /**
- * Copyright 2012 Jlue.org
+ * Copyright 2012 CaneData.org
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import org.junit.Test;
 
 /**
  * 
- * @author Sun Yat-ton (Mail:ImSunYitao@gmail.com)
+ * @author Sun Yat-ton
  * @version 1.00.000 2012-2-25
  */
 public class TestEmpty extends AbilityProvider {

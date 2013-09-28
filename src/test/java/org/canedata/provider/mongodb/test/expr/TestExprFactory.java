@@ -1,5 +1,5 @@
 /**
- * Copyright 2011 Jlue.org
+ * Copyright 2011 CaneData.org
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import org.junit.Test;
 
 /**
  * 
- * @author Sun Yat-ton (Mail:ImSunYitao@gmail.com)
+ * @author Sun Yat-ton
  * @version 1.00.000 2011-8-12
  */
 public class TestExprFactory {
@@ -44,9 +44,9 @@ public class TestExprFactory {
 			lm.readConfiguration(AbilityProvider.class
 					.getResourceAsStream("/logging.properties"));
 		} catch (SecurityException e) {
-			e.printStackTrace();
+			throw e;
 		} catch (IOException e) {
-			e.printStackTrace();
+			throw new RuntimeException(e);
 		}
 	}
 	

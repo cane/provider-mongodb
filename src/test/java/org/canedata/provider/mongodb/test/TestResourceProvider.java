@@ -52,9 +52,9 @@ public class TestResourceProvider {
 			lm.readConfiguration(TestResourceProvider.class
 					.getResourceAsStream("/logging.properties"));
 		} catch (SecurityException e) {
-			e.printStackTrace();
+			throw e;
 		} catch (IOException e) {
-			e.printStackTrace();
+			throw new RuntimeException(e);
 		}
 		
 		Properties conf = new Properties();
@@ -67,7 +67,6 @@ public class TestResourceProvider {
 		}
 		
 		try {
-			System.setProperty("MONGO.POOLSIZE", "800");
 			mongo = new MongoClient(host, port);
 		} catch (UnknownHostException e) {
 			throw new RuntimeException(e);

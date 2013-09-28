@@ -33,7 +33,7 @@ import com.mongodb.BasicDBObject;
 
 /**
  * 
- * @author Sun Yat-ton (Mail:ImSunYitao@gmail.com)
+ * @author Sun Yat-ton
  * @version 1.00.000 2011-8-9
  */
 public class IntentParser {
@@ -124,7 +124,7 @@ public class IntentParser {
 					options.append(step.getPurpose(), step.getScalar()[0]);
 					break;
 				default:
-					logger.warn(
+                        logger.warn(
 							"Step {0} does not apply to activities query, this step will be ignored.",
 							step.getName());
 				}

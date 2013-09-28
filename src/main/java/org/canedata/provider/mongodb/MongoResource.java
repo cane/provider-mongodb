@@ -127,7 +127,8 @@ public abstract class MongoResource implements Resource<DB> {
 					"Must specify the database name.");
 
 		String dbname = (String) args[0];
-		logger.debug("Taking the resource {0}.", dbname);
+		if(logger.isDebug())
+            logger.debug("Taking the resource {0}.", dbname);
 
 		DB db = getMongo().getDB(dbname);
 
@@ -166,7 +167,8 @@ public abstract class MongoResource implements Resource<DB> {
 					"Specifies the instance of the target is not "
 							+ DB.class.getName());
 
-		logger.debug("Release the resource {0}.", ((DB) target).getName());
+		if(logger.isDebug())
+            logger.debug("Release the resource {0}.", ((DB) target).getName());
 
 		((DB) target).requestDone();
 

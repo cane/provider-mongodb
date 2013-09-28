@@ -59,7 +59,7 @@ public class TestDataType extends AbilityProvider {
 
 		Command truncate = new Truncate();
 		WriteResult r = e.execute(truncate);
-		System.out.println(r.getN());
+
 		fields = e.put("int", i).put("int2", i2).put("long", l).put("char", c)
 				.put("boolean", b).put("float", f).put("byte", bt)
 				.put("double", d).put("bytes", bts).put("string", s)

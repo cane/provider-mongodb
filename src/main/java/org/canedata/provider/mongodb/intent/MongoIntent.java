@@ -54,8 +54,10 @@ public class MongoIntent implements Intent {
 	}
 
 	public Intent step(int stepId, String purpose, Object... scalars) {
-		logger.debug("Step to {0}, purpose is {1}, scalar is {2}.", stepId, purpose, (Object)scalars);
-		if(stepId == MongoStep.OPTION && Options.RETAIN.equals(purpose) && (Boolean)scalars[0]){
+		if(logger.isDebug())
+            logger.debug("Step to {0}, purpose is {1}, scalar is {2}.", stepId, purpose, (Object)scalars);
+
+        if(stepId == MongoStep.OPTION && Options.RETAIN.equals(purpose) && (Boolean)scalars[0]){
 			retain = true;
 			return this;
 		}

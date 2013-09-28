@@ -101,7 +101,6 @@ public class TestRestore extends AbilityProvider {
 		assertNotNull(f);
 		
 		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm");
-		System.out.println(sdf.format(f.getDate("date")));
 		assertTrue(d.equals(f.getDate("date")));
 	}
 	

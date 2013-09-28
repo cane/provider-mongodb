@@ -1,5 +1,5 @@
 /**
- * Copyright 2011 Jlue.org
+ * Copyright 2011 CaneData.org
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import org.canedata.provider.mongodb.field.MongoFields;
 
 /**
  * 
- * @author Sun Yat-ton (Mail:ImSunYitao@gmail.com)
+ * @author Sun Yat-ton
  * @version 1.00.000 2011-9-2
  */
 public class FieldsPool {
@@ -50,7 +50,8 @@ public class FieldsPool {
 	}
 
 	public MongoFields borrow() {
-		logger.debug("Borrowing {0} from {1} ...", KEY,
+		if(logger.isDebug())
+            logger.debug("Borrowing {0} from {1} ...", KEY,
 				FieldsPool.class.getName());
 
 		try {
@@ -68,7 +69,8 @@ public class FieldsPool {
 	}
 
 	public FieldsPool returnFields(MongoFields f) {
-		logger.debug("Returning {0} from {1} ...", KEY,
+		if(logger.isDebug())
+            logger.debug("Returning {0} from {1} ...", KEY,
 				FieldsPool.class.getName());
 		
 		try {

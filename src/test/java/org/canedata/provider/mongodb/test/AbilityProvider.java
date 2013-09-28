@@ -1,5 +1,5 @@
 /**
- * Copyright 2011 Jlue.org
+ * Copyright 2011 CaneData.org
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import org.junit.BeforeClass;
 
 /**
  * 
- * @author Sun Yat-ton (Mail:ImSunYitao@gmail.com)
+ * @author Sun Yat-ton
  * @version 1.00.000 2011-8-3
  */
 public class AbilityProvider extends AbstractAbility {

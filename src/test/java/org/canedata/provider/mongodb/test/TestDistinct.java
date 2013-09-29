@@ -19,6 +19,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.canedata.entity.Entity;
@@ -40,9 +41,7 @@ public class TestDistinct extends AbilityProvider {
 		assertFalse(rlt.isEmpty());
 		assertEquals(rlt.size(), 4);
 
-		for (Fields f : rlt) {
-			System.out.println(f.getString("name"));
-		}
+        validate(rlt);
 	}
 
 	@Test
@@ -55,9 +54,7 @@ public class TestDistinct extends AbilityProvider {
 		assertFalse(rlt.isEmpty());
 		assertEquals(rlt.size(), 3);
 
-		for (Fields f : rlt) {
-			System.out.println(f.getString("name"));
-		}
+        validate(rlt);
 	}
 	
 	@Test
@@ -70,8 +67,18 @@ public class TestDistinct extends AbilityProvider {
 		assertFalse(rlt.isEmpty());
 		assertEquals(rlt.size(), 3);
 
-		for (Fields f : rlt) {
-			System.out.println(f.getString("name"));
-		}
+        validate(rlt);
 	}
+
+    private void validate(List<Fields> rlt) {
+        List<String> names = new ArrayList<String>(rlt.size());
+        for (Fields f : rlt) {
+            assertNotNull(f.getString("name"));
+
+            if(names.contains(f.getString("name")))
+                throw new RuntimeException("duplicate");
+            else
+                names.add(f.getString("name"));
+        }
+    }
 }

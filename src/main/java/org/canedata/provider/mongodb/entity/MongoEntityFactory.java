@@ -64,6 +64,7 @@ public abstract class MongoEntityFactory implements EntityFactory {
 		return new MongoEntity() {
 			ThreadLocal<MongoIntent> lIntent = new ThreadLocal<MongoIntent>();
             ThreadLocal<DB> lDb = new ThreadLocal<DB>();
+            DBCollection collection = null;
 
 			String cacheSchema = null;
 			String label = name;
@@ -129,6 +130,9 @@ public abstract class MongoEntityFactory implements EntityFactory {
 
 			@Override
 			DBCollection getCollection() {
+                if(null != collection)
+                    return collection;
+
                 DB db = lDb.get();
 
 				if (null == db){
@@ -136,7 +140,8 @@ public abstract class MongoEntityFactory implements EntityFactory {
                     lDb.set(db);
                 }
 
-				return db.getCollection(name);
+                collection = db.getCollection(name);
+				return collection;
 			}
 
 			@Override

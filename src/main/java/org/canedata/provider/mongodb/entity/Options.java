@@ -75,4 +75,26 @@ public interface Options {
 	 * </code>
 	 */
 	public static final String FIND_AND_REMOVE = "findAndRemove";
+
+    /**
+     * value is int.
+     * @see com.mongodb.DBCollection#addOption(int)
+     */
+    public static final String MONGO_OPTION = "mongoOption";
+
+    /**
+     * value is int.
+     * @see com.mongodb.DBCollection#resetOptions()
+     */
+    public static final String RESET_MONGO_OPTIONS = "resetOptions";
+
+    /**
+     * @see com.mongodb.DBCollection#setReadPreference(com.mongodb.ReadPreference)
+     */
+    public static final String READ_PREFERENCE = "readPreference";
+
+    /**
+     * @see com.mongodb.DBCollection#setWriteConcern(com.mongodb.WriteConcern)
+     */
+    public static final String WRITE_CONCERN = "writeConcern";
 }

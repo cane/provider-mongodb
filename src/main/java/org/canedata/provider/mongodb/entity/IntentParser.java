@@ -47,7 +47,7 @@ public class IntentParser {
 			throws AnalyzeBehaviourException {
 		options.append(Options.RETAIN, false).append(Options.UPSERT, false);
 
-		final BasicDBObject cmd_sets = new BasicDBObject();
+		final BasicDBObject othersFields = new BasicDBObject();
 
 		intent.playback(new Tracer() {
 
@@ -109,15 +109,10 @@ public class IntentParser {
 					Object val = (step.getScalar() == null || step.getScalar().length == 0) ? null
 							: step.getScalar()[0];
 
-					if (step.getPurpose().matches(MongoEntity.internalCmds)
-							&& !step.getPurpose().equalsIgnoreCase("$set")) {
-						fields.append(step.getPurpose(), val);
-					} else {
-						if (step.getPurpose().equalsIgnoreCase("$set"))
-							cmd_sets.putAll((BSONObject) step.getScalar()[0]);
-						else
-							cmd_sets.append(step.getPurpose(), val);
-					}
+					if (step.getPurpose().matches(MongoEntity.internalCmds))
+                        fields.append(step.getPurpose(), val);
+                    else
+                        othersFields.append(step.getPurpose(), val);
 
 					break;
 				case MongoStep.OPTION:
@@ -134,7 +129,7 @@ public class IntentParser {
 
 		});
 
-		if(!cmd_sets.isEmpty())
-			fields.putAll(cmd_sets.toMap());
+        if(!othersFields.isEmpty())
+            fields.append("$set", othersFields);
 	}
 }

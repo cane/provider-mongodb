@@ -6,7 +6,7 @@
 	<artifactId>cane-provider-mongodb</artifactId>
 	<packaging>jar</packaging>
     <name>Mongodb provider</name>
-	<version>0.6</version>
+	<version>0.5</version>
 
     <description>
         Cane provider for mongodb.
@@ -85,6 +85,7 @@
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
 			<version>4.11</version>
+            <scope>test</scope>
 		</dependency>
 	</dependencies>
 

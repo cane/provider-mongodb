@@ -16,6 +16,7 @@
 package org.canedata.provider.mongodb.entity;
 
 import java.io.Serializable;
+import java.lang.reflect.MalformedParameterizedTypeException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -25,6 +26,8 @@ import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
+import com.mongodb.*;
+import com.mongodb.util.JSON;
 import org.canedata.cache.Cache;
 import org.canedata.cache.Cacheable;
 import org.canedata.core.field.AbstractWritableField;
@@ -56,12 +59,6 @@ import org.canedata.provider.mongodb.intent.MongoIntent;
 import org.canedata.provider.mongodb.intent.MongoStep;
 import org.canedata.ta.Transaction;
 import org.canedata.ta.TransactionHolder;
-
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBCollection;
-import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
-import com.mongodb.WriteResult;
 
 /**
  * @author Sun Yat-ton
@@ -186,6 +183,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                         getSchema(), getName(), key);
 
             final BasicDBObject doc = new BasicDBObject();
+            final BasicDBObject options = new BasicDBObject();
             getIntent().playback(new Tracer() {
 
                 public Tracer trace(Step step) throws AnalyzeBehaviourException {
@@ -201,6 +199,9 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                                     step.getScalar() == null ? null : step
                                             .getScalar()[0]);
                             break;
+                        case MongoStep.OPTION:
+                            options.append(step.getPurpose(), step.getScalar()[0]);
+                            break;
                         default:
                             logger.warn(
                                     "Step {0} does not apply to activities create, this step will be ignored.",
@@ -213,6 +214,10 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             if (key != null)
                 doc.put("_id", key);
+
+            //process options
+            if(!options.isEmpty())
+                prepareOptions(options);
 
             WriteResult rlt = getCollection().insert(doc,
                     getCollection().getWriteConcern());
@@ -263,6 +268,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                         getSchema(), getName(), key);
 
             final BasicDBObject doc = new BasicDBObject();
+            final BasicDBObject options = new BasicDBObject();
             getIntent().playback(new Tracer() {
 
                 public Tracer trace(Step step) throws AnalyzeBehaviourException {
@@ -278,6 +284,9 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                                     step.getScalar() == null ? null : step
                                             .getScalar()[0]);
                             break;
+                        case MongoStep.OPTION:
+                            options.append(step.getPurpose(), step.getScalar()[0]);
+                            break;
                         default:
                             logger.warn(
                                     "Step {0} does not apply to activities create, this step will be ignored.",
@@ -290,6 +299,9 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             if (key != null)
                 doc.put("_id", key);
+
+            if(!options.isEmpty())
+                prepareOptions(options);
 
             WriteResult rlt = getCollection().save(doc,
                     getCollection().getWriteConcern());
@@ -354,7 +366,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                         "Keys must be contain one element.");
 
             final BasicDBObject projection = new BasicDBObject();
-
+            final BasicDBObject options = new BasicDBObject();
             getIntent().playback(new Tracer() {
 
                 public Tracer trace(Step step) throws AnalyzeBehaviourException {
@@ -365,6 +377,9 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                                 projection.put(f, 1);
                             }
 
+                            break;
+                        case MongoStep.OPTION:
+                            options.append(step.getPurpose(), step.getScalar()[0]);
                             break;
                         default:
                                 logger.warn(
@@ -394,6 +409,9 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
                     cachedFs = (MongoFields) getCache().restore(cacheKey);
                 } else {
+                    if(!options.isEmpty())
+                        prepareOptions(options);
+
                     BasicDBObject dbo = (BasicDBObject) getCollection()
                             .findOne(bdbo);
 
@@ -411,6 +429,9 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
                 return cachedFs.clone().project(projection.keySet());
             } else {// no cache
+                if(!options.isEmpty())
+                    prepareOptions(options);
+
                 DBObject dbo = getCollection().findOne(bdbo, projection);
 
                 if(logger.isDebug())
@@ -584,6 +605,9 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             IntentParser.parse(getIntent(), expFactory, null, projection,
                     limiter, sorter, options);
 
+            if(!options.isEmpty())
+                prepareOptions(options);
+
             if (null != getCache()) {// cache
                 cursor = getCollection().find(expFactory.toQuery(),
                         new BasicDBObject().append("_id", 1));
@@ -641,7 +665,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                     missedCacheHits.clear();
                 }
 
-                logger.debug("Listed entities hit cache ...");
+                if(logger.isDebug())
+                    logger.debug("Listed entities hit cache ...");
             } else {
                 while (cursor.hasNext()) {
                     BasicDBObject dbo = (BasicDBObject) cursor.next();
@@ -649,12 +674,14 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                     rlt.add(new MongoFields(this, getIntent(), dbo));
                 }
 
-                logger.debug("Listed entities ...");
+                if(logger.isDebug())
+                    logger.debug("Listed entities ...");
             }
 
             return rlt;
         } catch (AnalyzeBehaviourException abe) {
-            logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
+            if(logger.isDebug())
+                logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
                     abe.getMessage());
 
             throw new RuntimeException(abe);
@@ -685,6 +712,12 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
         return first();
     }
 
+    /**
+     * Finds the first document in the query and updates it.
+     * @see com.mongodb.DBCollection#findAndModify(com.mongodb.DBObject, com.mongodb.DBObject, com.mongodb.DBObject, boolean, com.mongodb.DBObject, boolean, boolean)
+     * @param expr
+     * @return
+     */
     public Fields findAndUpdate(Expression expr) {
         if(logger.isDebug())
             logger.debug(
@@ -709,24 +742,22 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             if(logger.isDebug())
                 logger.debug(
-                    "Finding and updating entity, Database is {0}, Collection is {1}, expression is {2} ...",
-                    getSchema(), getName(), query.toString());
+                    "Finding and updating entity, Database is {0}, Collection is {1}, expression is {2}, "
+                            + "Projections is {3}, Update is {4}, Sorter is {5}, Options is {6} ...",
+                    getSchema(), getName(), query.toString(), projection.toString(),
+                        fields.toString(), sorter.toString(), JSON.serialize(options));
 
-            DBObject rlt = getCollection().findAndModify(query, null,
+            DBObject rlt = getCollection().findAndModify(query, projection,
                     sorter, options.getBoolean(Options.FIND_AND_REMOVE, false), fields,
                     options.getBoolean(Options.RETURN_NEW, false),
-                    options.getBoolean(Options.UPSERT));
+                    options.getBoolean(Options.UPSERT, false));
 
             if (rlt == null || rlt.keySet().isEmpty())
                 return null;
 
             // alive cache
             if (null != getCache()) {
-                BasicDBObject c = new BasicDBObject();
-                c.putAll(rlt);
-                c.putAll((DBObject) fields);
-
-                getCache().cache(new MongoFields(this, getIntent(), c));
+                invalidateCache(query);
             }
 
             return new MongoFields(this, getIntent(), (BasicDBObject) rlt).project(projection.keySet());
@@ -1437,4 +1468,36 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                 cursor.close();
         }
     }
+
+    private void prepareOptions(BasicDBObject options){
+        for(String o : options.keySet()){
+            if(Options.MONGO_OPTION.equals(o)){
+                getCollection().addOption(options.getInt(o));
+                continue;
+            }
+
+            if(Options.RESET_MONGO_OPTIONS.equals(o)){
+                getCollection().resetOptions();
+                continue;
+            }
+
+            if(Options.READ_PREFERENCE.equals(o)){
+                if(!(options.get(o) instanceof ReadPreference))
+                    throw new MalformedParameterizedTypeException();
+
+               getCollection().setReadPreference((ReadPreference)options.get(o));
+
+               break;
+            }
+
+            if(Options.WRITE_CONCERN.equals(o)){
+                if(!(options.get(o) instanceof WriteConcern))
+                    throw new MalformedParameterizedTypeException();
+
+                getCollection().setWriteConcern((WriteConcern)options.get(o));
+                break;
+            }
+        }
+    }
+
 }

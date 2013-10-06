@@ -20,9 +20,13 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import com.mongodb.util.JSON;
 import org.canedata.entity.Entity;
 import org.canedata.field.Fields;
+import org.canedata.provider.mongodb.entity.Options;
 import org.junit.Test;
+
+import java.util.Arrays;
 
 /**
  * 
@@ -35,18 +39,18 @@ public class TestFindAndUpdate extends CacheAbilityProvider {
 		Entity e = factory.get("user");
 		assertNotNull(e);
 
-		String id = "id:test:1";
+		String id = "id:test:3";
 		Fields f = e.restore(id);
 		assertTrue(f.getInt("age") == 13);
 		assertTrue(f.isRestored());
 		
-		Fields upd = e.projection("age")/*.opt(Options.UPSERT, true)*/.put("age", 19).findAndUpdate(e.filter().equals("_id", id));
+		Fields upd = e.projection("age").opt(Options.RETURN_NEW, false).put("age", 19).findAndUpdate(e.filter().equals("_id", id));
 		assertFalse(upd.isRestored());
 		assertEquals(upd.getInt("age"), 13);
 		
-		f = e.restore(id);
+		f = e.restore(id);  System.out.println(f.getInt("age"));
 		assertTrue(f.getInt("age") == 19);
-		assertTrue(f.isRestored());
+		assertTrue(!f.isRestored());
 
 		e.close();
 	}

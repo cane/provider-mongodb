@@ -16,18 +16,23 @@
 package org.canedata.provider.mongodb.entity;
 
 import org.canedata.cache.Cache;
+import org.canedata.core.intent.Intent;
 import org.canedata.core.logging.LoggerFactory;
 import org.canedata.core.util.StringUtils;
 import org.canedata.entity.Entity;
 import org.canedata.entity.EntityFactory;
 import org.canedata.logging.Logger;
 import org.canedata.provider.mongodb.MongoResource;
+import org.canedata.provider.mongodb.MongoResourceProvider;
 import org.canedata.provider.mongodb.intent.MongoIntent;
 import org.canedata.resource.Resource;
 import org.canedata.resource.ResourceProvider;
 
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 
@@ -39,6 +44,7 @@ public abstract class MongoEntityFactory implements EntityFactory {
 			.getLogger(MongoEntityFactory.class);
 
 	abstract protected ResourceProvider getResourceProvider();
+    abstract protected String getDefaultSchema();
 
 	public Entity get(String name) {
 		return get(null, null, name);
@@ -60,20 +66,19 @@ public abstract class MongoEntityFactory implements EntityFactory {
 		}
 
 		final MongoResource cres = mres;
+        final String final_schema = StringUtils.isBlank(schema)?getDefaultSchema():schema;
 
 		return new MongoEntity() {
-			ThreadLocal<MongoIntent> lIntent = new ThreadLocal<MongoIntent>();
-            ThreadLocal<DB> lDb = new ThreadLocal<DB>();
+            ThreadLocal<Map<String, DB>> lDb = new ThreadLocal<Map<String, DB>>();
+
             DBCollection collection = null;
 
 			String cacheSchema = null;
 			String label = name;
+            MongoIntent intent = new MongoIntent(this);
 
 			public String getSchema() {
-				if (StringUtils.isBlank(schema))
-					return getCollection().getDB().getName();
-
-				return schema;
+				return final_schema;
 			}
 
 			public String getName() {
@@ -103,12 +108,6 @@ public abstract class MongoEntityFactory implements EntityFactory {
 			 */
 			@Override
 			protected MongoIntent getIntent() {
-				MongoIntent intent = lIntent.get();
-				if (null == intent) {
-					intent = new MongoIntent(this);
-					lIntent.set(intent);
-				}
-
 				return intent;
 			}
 
@@ -117,10 +116,13 @@ public abstract class MongoEntityFactory implements EntityFactory {
 					return;
 
 				hasClosed = true;
-                DB db = lDb.get();
+                DB db = getDb(final_schema);
 
 				if (null != db)
 					cres.release(db);
+
+                Map<String, DB> dbs = lDb.get();
+                dbs.remove(final_schema);
 			}
 
 			@Override
@@ -133,16 +135,28 @@ public abstract class MongoEntityFactory implements EntityFactory {
                 if(null != collection)
                     return collection;
 
-                DB db = lDb.get();
-
-				if (null == db){
-					db = cres.take();
-                    lDb.set(db);
-                }
+                DB db = getDb(final_schema);
 
                 collection = db.getCollection(name);
 				return collection;
 			}
+
+            private DB getDb(String schema){
+                Map<String, DB> dbs = lDb.get();
+                if(null == dbs){
+                    dbs = new HashMap<String, DB>();
+                    lDb.set(dbs);
+                }
+
+                DB db = dbs.get(schema);
+                if(null == db){
+                    db = cres.take(schema);
+
+                    dbs.put(schema, db);
+                }
+
+                return db;
+            }
 
 			@Override
 			MongoEntityFactory getFactory() {

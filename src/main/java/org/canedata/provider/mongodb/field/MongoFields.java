@@ -108,9 +108,13 @@ public class MongoFields extends AbstractFields {
 		return target.keySet().toArray(new String[target.keySet().size()]);
 	}
 
-	public MongoReadableField getField(final String field) {
-		if (!target.keySet().contains(field))
-			return null;// throw new NoSuchFieldException(entity.getIdentity(),
+    public <T> T get(String field) {
+        return (T)target.get(field);
+    }
+
+    public MongoReadableField getField(final String field) {
+//		if (!target.keySet().contains(field))
+//			return null;// throw new NoSuchFieldException(entity.getIdentity(),
 						// field);
 
 		return new MongoReadableField() {
@@ -159,65 +163,7 @@ public class MongoFields extends AbstractFields {
 		return target.containsField(field);
 	}
 	
-	@Override
-	public char getChar(String field) {
-		return (char) target.getInt(field);
-	}
 
-	@Override
-	public int getInt(String field) {
-		return target.getInt(field);
-	}
-
-	@Override
-	public double getDouble(String field) {
-		return target.getDouble(field);
-	}
-
-	@Override
-	public byte getByte(String field) {
-		return (byte) getInt(field);
-	}
-
-	@Override
-	public byte[] getBytes(String field) {
-		Object t = target.get(field);
-		if (null == t)
-			return new byte[0];
-
-		// if(Bytes.getType(t) == 5)
-		// return (byte[])t;
-
-		return ByteUtil.getBytes(target.get(field));
-	}
-
-	@Override
-	public long getLong(String field) {
-		return target.getLong(field);
-	}
-
-	@Override
-	public short getShort(String field) {
-		return (short) getInt(field);
-	}
-
-	@Override
-	public float getFloat(String field) {
-		Double d = ((BasicDBObject) target).getDouble(field);
-		return d.floatValue();
-	}
-
-	@Override
-	public String getString(String field) {
-		Object t = target.get(field);
-		if (t == null)
-			return null;
-
-		if (t instanceof ObjectId)
-			return ((ObjectId) t).toString();
-
-		return ByteUtil.getString(t);
-	}
 
 	public void reset() {
 		entity = null;
@@ -228,7 +174,7 @@ public class MongoFields extends AbstractFields {
 		key = null;
 	}
 
-	public String getKey() {
+	public Object getKey() {
 		return key;
 	}
 

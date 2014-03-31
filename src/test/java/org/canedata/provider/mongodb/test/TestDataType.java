@@ -15,14 +15,9 @@
  */
 package org.canedata.provider.mongodb.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-
-import java.util.Arrays;
-import java.util.Date;
-
+import com.mongodb.WriteResult;
 import org.bson.types.ObjectId;
+import org.canedata.core.util.ByteUtil;
 import org.canedata.entity.Command;
 import org.canedata.entity.Entity;
 import org.canedata.field.Fields;
@@ -30,7 +25,11 @@ import org.canedata.provider.mongodb.command.Truncate;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.mongodb.WriteResult;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Date;
+
+import static org.junit.Assert.*;
 
 /**
  * 
@@ -53,7 +52,7 @@ public class TestDataType extends AbilityProvider {
 
 	static Fields fields = null;
 
-	@BeforeClass
+    @BeforeClass
 	public static void init() {
 		Entity e = factory.get("user");
 
@@ -86,7 +85,7 @@ public class TestDataType extends AbilityProvider {
 	@Test
 	public void restored(){
 		assertNotNull(fields);
-		
+
 		Entity e = factory.get("user");
 		Fields fs = e.restore((ObjectId)fields.get("_id"));
 

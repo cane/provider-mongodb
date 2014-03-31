@@ -43,8 +43,8 @@ public abstract class AbstractAbility {
 	protected static MongoResourceProvider resProvider = null;
 	protected static EntityFactory factory = null;
 	
-	static String host = "localhost";
-	static int port = 27017;
+	protected static String host = "localhost";
+	protected static int port = 27017;
 	
 	
 	protected void initLogManager(){
@@ -93,6 +93,7 @@ public abstract class AbstractAbility {
 		Command truncate = new Truncate();
 		
 		factory.get("t").call(truncate);
+        factory.get("list").call(truncate);
 		
 		Entity e = factory.get("user");
 		e.execute(truncate);

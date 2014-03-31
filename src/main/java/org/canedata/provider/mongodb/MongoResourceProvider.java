@@ -15,15 +15,13 @@
  */
 package org.canedata.provider.mongodb;
 
-import java.util.HashMap;
-import java.util.Map;
-
+import com.mongodb.DB;
 import com.mongodb.MongoClient;
 import org.canedata.resource.Resource;
 import org.canedata.resource.ResourceProvider;
 
-import com.mongodb.DB;
-import com.mongodb.Mongo;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 
@@ -110,10 +108,6 @@ public class MongoResourceProvider implements ResourceProvider {
 	}
 	
 	public String getDefaultDBName(){
-		return defaultDbName;
-	}
-
-	public String getDefaultDbName() {
 		return defaultDbName;
 	}
 

@@ -37,8 +37,7 @@ public class TestUpdate extends CacheAbilityProvider {
 
 		String id = "id:test:1";
 		Fields f = e.restore(id);
-		assertTrue(f.isRestored());
-		
+
 		e.put("age", 19).update(id);
 		f = e.restore(id);
 		assertFalse(f.isRestored());
@@ -54,7 +53,7 @@ public class TestUpdate extends CacheAbilityProvider {
 
 		String id = "id:test:2";
 		Fields f = e.restore(id);
-		assertTrue(f.isRestored());
+		assertTrue(!f.isRestored());
 		
 		e.put("age", 19).updateRange(e.expr().equals("_id", id));
 		f = e.restore(id);

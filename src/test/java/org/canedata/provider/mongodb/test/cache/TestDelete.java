@@ -37,7 +37,7 @@ public class TestDelete extends CacheAbilityProvider {
 
 		String id = "id:test:a";
 		Fields f = e.restore(id);
-		assertTrue(f.isRestored());
+		assertTrue(!f.isRestored());
 
 		int c = e.delete(id);
 		assertEquals(c, 1);

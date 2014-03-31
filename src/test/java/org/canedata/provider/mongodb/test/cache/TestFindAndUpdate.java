@@ -42,13 +42,13 @@ public class TestFindAndUpdate extends CacheAbilityProvider {
 		String id = "id:test:3";
 		Fields f = e.restore(id);
 		assertTrue(f.getInt("age") == 13);
-		assertTrue(f.isRestored());
+		assertTrue(!f.isRestored());
 		
 		Fields upd = e.projection("age").opt(Options.RETURN_NEW, false).put("age", 19).findAndUpdate(e.filter().equals("_id", id));
 		assertFalse(upd.isRestored());
 		assertEquals(upd.getInt("age"), 13);
 		
-		f = e.restore(id);  System.out.println(f.getInt("age"));
+		f = e.restore(id);
 		assertTrue(f.getInt("age") == 19);
 		assertTrue(!f.isRestored());
 

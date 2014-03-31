@@ -34,7 +34,7 @@ import org.canedata.core.field.AbstractWritableField;
 import org.canedata.core.intent.Step;
 import org.canedata.core.intent.Tracer;
 import org.canedata.core.logging.LoggerFactory;
-import org.canedata.core.util.Limiter;
+import org.canedata.core.intent.Limiter;
 import org.canedata.core.util.StringUtils;
 import org.canedata.entity.Batch;
 import org.canedata.entity.Command;
@@ -227,14 +227,6 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             MongoFields fields = new MongoFields(MongoEntity.this,
                     MongoEntity.this.getIntent(), doc);
 
-            // cache
-            if (null != getCache()) {
-                if(logger.isDebug())
-                    logger.debug("Puting fields to cache, cache key is {0} ...",
-                        fields.getKey());
-                getCache().cache(fields);
-            }
-
             if(logger.isDebug())
                 logger.debug(
                     "Created entity, Database is {0}, Collection is {1}, key is {2}.",
@@ -314,9 +306,9 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             // cache
             if (null != getCache()) {
                 if(logger.isDebug())
-                    logger.debug("Puting fields to cache, cache key is {0} ...",
+                    logger.debug("Invalid fields to cache, cache key is {0} ...",
                         fields.getKey());
-                getCache().cache(fields);
+                getCache().remove(key);
             }
 
             if(logger.isDebug())
@@ -648,10 +640,13 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                     if (getCache().isAlive(cacheKey)) {// load from cache
                         MongoFields mf = (MongoFields) getCache().restore(
                                 cacheKey);
-                        ele = mf.clone();// pooling
-                        if (!projection.isEmpty())
-                            ele.project(projection.keySet());
-                    } else {
+                        if(null != mf) ele = mf.clone();// pooling
+                    }
+
+                    if(null != ele && !projection.isEmpty())
+                        ele.project(projection.keySet());
+
+                    if(null == ele){
                         ele = new MongoFields(this, getIntent());
                         missedCacheHits.put(key, ele);
                     }
@@ -1341,14 +1336,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * @deprecated UnsupportedOperation
      */
-    public Batch<Entity> batch() {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * @deprecated UnsupportedOperation
-     */
-    public Batch<Entity> batch(String pattern) {
+    public Batch batch() {
         throw new UnsupportedOperationException();
     }
 

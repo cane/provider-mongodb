@@ -16,11 +16,10 @@
 
 package org.canedata.provider.mongodb.entity;
 
-import org.bson.BSONObject;
 import org.canedata.core.intent.Step;
 import org.canedata.core.intent.Tracer;
 import org.canedata.core.logging.LoggerFactory;
-import org.canedata.core.util.Limiter;
+import org.canedata.core.intent.Limiter;
 import org.canedata.core.util.StringUtils;
 import org.canedata.exception.AnalyzeBehaviourException;
 import org.canedata.logging.Logger;

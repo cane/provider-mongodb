@@ -59,7 +59,8 @@ public class MongoProvider implements CaneProvider {
 			name = "MF:" + this.hashCode();
 
 		final String _name = name;
-		
+		final String defaultSchema = ((MongoResourceProvider)resourceProvider).getDefaultDBName();
+
 		return new MongoEntityFactory() {
 
 			public String getName() {
@@ -79,6 +80,9 @@ public class MongoProvider implements CaneProvider {
 				return resourceProvider;
 			}
 
+            protected String getDefaultSchema(){
+                return defaultSchema;
+            }
 		};
 
 	}

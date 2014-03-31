@@ -15,18 +15,23 @@
  */
 package org.canedata.provider.mongodb.test.cache;
 
+import com.mongodb.MongoClient;
+import com.mongodb.MongoException;
 import org.canedata.cache.CacheProvider;
 import org.canedata.module.ehcache.EhcacheProvider;
 import org.canedata.provider.mongodb.MongoProvider;
+import org.canedata.provider.mongodb.MongoResourceProvider;
 import org.canedata.provider.mongodb.test.AbstractAbility;
 import org.junit.BeforeClass;
+
+import java.net.UnknownHostException;
 
 /**
  * 
  * @author Sun Yat-ton
  * @version 1.00.000 2011-9-2
  */
-public class CacheAbilityProvider extends AbstractAbility{
+public class CacheAbilityProvider extends AbstractAbility {
     static CacheProvider cp = new EhcacheProvider("sampleCache");
 
 	@BeforeClass
@@ -42,7 +47,7 @@ public class CacheAbilityProvider extends AbstractAbility{
 	@Override
 	protected void initFactory() {
 		provider = new MongoProvider();
-		factory = provider.getFactory("test", resProvider, cp);
+		factory = provider.getFactory("test@cache", resProvider, cp);
 	}
 	
 	

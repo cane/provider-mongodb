@@ -39,6 +39,8 @@ public class MongoStep extends AbstractStep {
 	public static final int LIST = 35;
 
 	public static final int FETCH = 40;
+    public static final int BATCH = 41;
+    public static final int BATCH_CLEAR = 42;
 
 	//
 	public static final int PROJECTION = 50;

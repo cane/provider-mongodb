@@ -500,7 +500,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     }
 
     /**
-     * can use key and name of columns. first param is key, others is columns. <br/>
+     * can use key and name of columns. first param is key, others is columns.
      * When you check whether the columns exists, if one of column does not
      * exist, than return false.
      */

@@ -27,14 +27,14 @@ public interface Options {
 	 * context information to retain the next operation.
 	 * </p>
 	 * <h3>Example:</h3>
-	 * <code><pre>
+	 * <code>
 	 * 	Entity e = ...
 	 * 	e.filter(e.expr().equals("name", "cane").filter(...);
 	 * 	long count = e.opt(Options.RETAIN, true).count();
-	 * 	List<Fields> rlt = e.list(page.PAGE * page.PAGE_SIZE, page.PAGE_SIZE);
+	 * 	{@code List<Fields>} rlt = e.list(page.PAGE * page.PAGE_SIZE, page.PAGE_SIZE);
 	 * 	page.pages = count/page.PAGE_SIZE;
 	 * 	...
-	 * </pre></code>
+	 * </code>
 	 */
 	public static final String RETAIN = "retain";
 	
@@ -42,11 +42,11 @@ public interface Options {
 	 * boolean type, default is false.
 	 * if true, the updated document is returned, otherwise the old document is returned (or it would be lost forever).
 	 * use at findAndUpdate, such as:
-	 * <code><pre>
+	 * <pre>
 	 * e.opt(Options.RETURN_NEW, true).findAndUpdate(...)
 	 * ...
-	 * </code>
 	 * </pre>
+	 *
 	 */
 	public static final String RETURN_NEW = "returnNew";
 	
@@ -54,10 +54,10 @@ public interface Options {
 	 * boolean type, default is false.
 	 * If upsert is true, do upsert (insert if document not present).
 	 * use at {@link MongoEntity#update}, {@link MongoEntity#updateRange} and {@link MongoEntity#findAndUpdate}, such as: 
-	 * <code><pre>
+	 * <pre>
 	 * e.opt(Options.UPSERT, true).findAndUpdate(...) 
 	 * ...
-	 * </pre></code>
+	 * </pre>
 	 * 
 	 * If {@link #UPSERT} is true and {@link #RETURN_NEW} is false, may return NULL when the data does not exist.
 	 */
@@ -67,12 +67,10 @@ public interface Options {
 	 * boolean type, default is false.  if true, document found will be removed.
 	 * 
 	 * use at findAndUpdate, such as:
-	 * <code>
 	 * <pre>
 	 * e.opt(Options.FIND_AND_REMOVE, true).findAndUpdate(...)
 	 * ...
 	 * </pre>
-	 * </code>
 	 */
 	public static final String FIND_AND_REMOVE = "findAndRemove";
 

@@ -28,7 +28,7 @@ import org.junit.Test;
  */
 public class TestFilter extends AbilityProvider {
 	@Test
-	public void th() {
+	public void multiOr() {
 		Entity e = factory.get("user");
 		assertNotNull(e);
 
@@ -41,5 +41,82 @@ public class TestFilter extends AbilityProvider {
 
 		e.close();
 	}
+
+    @Test
+    public void or_and_or() {
+        Entity e = factory.get("user");
+        assertNotNull(e);
+
+        int c = e
+                .projection("name")
+                .filter(e.expr().notEquals("name", "cane").and()
+                        .notEquals("4up", "cane").or()
+                        .notEquals("vendor", "cane")).count().intValue();
+        assertEquals(c, 8);
+
+        e.close();
+    }
+
+    @Test
+    public void or_subOr() {
+        Entity e = factory.get("user");
+        assertNotNull(e);
+
+        int c = e
+                .projection("name")
+                .filter(e.expr().notEquals("name", "cane").or(e.expr().notEquals("4up", "cane").or()
+                                .notEquals("vendor", "cane"))
+                        ).count().intValue();
+        assertEquals(c, 8);
+
+        e.close();
+    }
+
+    @Test
+    public void multiSubOr() {
+        Entity e = factory.get("user");
+        assertNotNull(e);
+
+        int c = e
+                .projection("name")
+                .filter(e.expr().equals("name", "cane").or(e.expr().equals("4up", "dd")).and()
+                        .equals("4up", "dd").or(e.expr().notEquals("4up", "xxx").or().equals("vendor", "cane"))).count().intValue();
+        assertEquals(c, 8);
+
+        e.close();
+    }
+
+    @Test
+    public void th3() {
+        Entity e = factory.get("user");
+        assertNotNull(e);
+
+        int c = e
+                .projection("name")
+                .filter(e.expr().notEquals("name", "cane").and(e.expr().notEquals("4up", "cane").or()
+                                .notEquals("vendor", "cane"))
+                        ).count().intValue();
+        assertEquals(c, 7);
+
+        e.close();
+    }
+
+    /**
+     * sub or filter after sub and filter
+     */
+    @Test
+    public void th4() {
+        Entity e = factory.get("user");
+        assertNotNull(e);
+
+        int c = e
+                .projection("name")
+                .filter(e.expr().notEquals("name", "cane").and(e.expr().notEquals("4up", "cane").or()
+                                .notEquals("vendor", "cane"))
+                ).count().intValue();
+        assertEquals(c, 7);
+
+        e.close();
+    }
 
 }

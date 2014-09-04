@@ -105,7 +105,7 @@ public abstract class AbstractAbility {
 		e.put("name", "cane").put("gender", 0).put("vendor", "cane team").create("id:test:a");
 		e.put("age", 18).put("name", "cane provider").put("gender", 1).create();
 		e.put("age", 19).put("name", "mongo").put("gender", 2).create();
-		e.put("age", 63).put("name", "provider").put("gender", 1).create();
+		e.put("age", 63).put("name", "provider").put("gender", 1).put("vendor", "cane").create();
 		
 		e.close();
 	}

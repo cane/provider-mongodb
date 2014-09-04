@@ -17,9 +17,11 @@ package org.canedata.provider.mongodb.expr;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Vector;
 import java.util.regex.Pattern;
 
+import com.mongodb.BasicDBList;
 import org.bson.BSONObject;
 import org.canedata.core.intent.Step;
 import org.canedata.core.intent.Tracer;
@@ -99,12 +101,11 @@ public interface MongoExpressionFactory {
 			exp.parse(new Parser() {
 
 				public <T> void parse(T t) throws ParseExpressionException {
-					MongoExprIntent intent = (MongoExprIntent) t;
-					final List<BasicDBObject> ors = new ArrayList<BasicDBObject>();
-
+					final MongoExprIntent intent = (MongoExprIntent) t;
+                    final BasicDBObject innerBdbo = new BasicDBObject();
+                    final List<BasicDBObject> ors = new ArrayList<BasicDBObject>();
 					try {
 						intent.playback(new Tracer() {
-							boolean hasOr = false;
 
 							public Tracer trace(final Step step)
 									throws AnalyzeBehaviourException {
@@ -113,8 +114,6 @@ public interface MongoExpressionFactory {
 										"ExpreIntent#playback, step is {0}, purpose is {1}, values is {2}.",
 										step.getName(), step.getPurpose(),
 										step.getScalar());
-
-								BasicDBObject innerBdbo = new BasicDBObject();
 
 								switch (step.step()) {
 								case Operator.EQUALS:
@@ -273,28 +272,42 @@ public interface MongoExpressionFactory {
 									MongoExpression andepr = (MongoExpression) step
 											.getScalar()[0];
 
-									Impl.this.parse(andepr, innerBdbo);
+                                    List<BasicDBObject> ands = new ArrayList<BasicDBObject>();
 
+                                    BasicDBObject subInnerBdo4And = new BasicDBObject();
+
+                                    Impl.this.parse(andepr, subInnerBdo4And);
+                                    ands.add(subInnerBdo4And);
+                                    ands.add(innerBdbo);
+
+                                    query.append("$and", ands);
 									break;
 								case Operator.OR:
+                                    BasicDBObject pre4or = (BasicDBObject)innerBdbo.clone();//new BasicDBObject(innerBdbo.toMap());
+                                    innerBdbo.clear();
+
+                                    ors.add(pre4or);
+
+                                    break;
 								case Operator.OR_EPR:
-									if(logger.isDebug())
-                                        logger.debug(
-											"When parsing expression met Operator.OR, The original information is :{0}.",
-											innerBdbo.toString());
-									if (query.size() == 0)
+									if (query.size() == 0 && innerBdbo.size() == 0)
 										throw new ParseExpressionException(
 												"The current operation<Operator.OR> does not match the chains of operations.");
 
-									hasOr = true;
+                                    MongoExpression oepr = (MongoExpression) step
+                                            .getScalar()[0];
 
-									if (step.step() == Operator.OR)
-										break;
+                                    BasicDBObject pre4orexpr = (BasicDBObject)innerBdbo.clone();
+                                    innerBdbo.clear();
 
-									MongoExpression oepr = (MongoExpression) step
-											.getScalar()[0];
+                                    List<BasicDBObject> ors4sub = new ArrayList<BasicDBObject>();
+                                    ors4sub.add(pre4orexpr);
 
-									Impl.this.parse(oepr, innerBdbo);
+                                    BasicDBObject subInnerBdo4Or = new BasicDBObject();
+                                    ors4sub.add(subInnerBdo4Or);
+                                    Impl.this.parse(oepr, subInnerBdo4Or);
+
+                                    innerBdbo.append("$or", ors4sub);
 
 									break;
 								default:
@@ -303,34 +316,24 @@ public interface MongoExpressionFactory {
 											step.getName());
 								}
 
-								if (innerBdbo.isEmpty())
-									return this;
-
-								if (hasOr) {
-									hasOr = false;
-
-									ors.add(innerBdbo);
-								} else {
-									query.putAll((BSONObject) innerBdbo);
-								}
 
 								return this;
 							}
 
 						});
-						
-						//ignore or operations.
-						if(ors.isEmpty())
-							return;
-						
-						BasicDBObject no = new BasicDBObject(query.toMap());
-						query.clear();
 
-						ors.add(0, no);
-						query.append("$or", ors.toArray());
 					} catch (AnalyzeBehaviourException e) {
 						throw new ParseExpressionException(e);
 					}
+
+                    if(!ors.isEmpty()){
+                        if(!innerBdbo.isEmpty())
+                            ors.add(innerBdbo);
+                        query.put("$or", ors);
+                    }else if(!innerBdbo.isEmpty()) {
+                        query.putAll(innerBdbo.toMap());
+                        innerBdbo.clear();
+                    }
 
 				}
 

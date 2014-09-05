@@ -119,4 +119,33 @@ public class TestFilter extends AbilityProvider {
         e.close();
     }
 
+    @Test
+    public void multiAnd(){
+        Entity e = factory.get("user");
+        assertNotNull(e);
+
+        int c = e
+                .projection("name")
+                .filter(e.expr().equals("name", "cane").and().equals("gender", 0).and()
+                                .equals("vendor", "cane team")
+                ).count().intValue();
+        assertEquals(c, 1);
+
+        e.close();
+    }
+
+    @Test
+    public void multiSubAnd(){
+        Entity e = factory.get("user");
+        assertNotNull(e);
+
+        int c = e
+                .projection("name")
+                .filter(e.expr().equals("name", "cane").and(e.expr().equals("gender", 0)).and(e.expr().equals("vendor", "cane team"))
+                ).count().intValue();
+        assertEquals(c, 1);
+
+        e.close();
+    }
+
 }

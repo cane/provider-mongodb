@@ -269,18 +269,18 @@ public interface MongoExpressionFactory {
 								case Operator.AND:
 									break;
 								case Operator.AND_EPR:
-									MongoExpression andepr = (MongoExpression) step
-											.getScalar()[0];
-
                                     List<BasicDBObject> ands = new ArrayList<BasicDBObject>();
 
+                                    BasicDBObject pre4andExpr = (BasicDBObject)innerBdbo.clone();
+                                    ands.add(pre4andExpr);
+
                                     BasicDBObject subInnerBdo4And = new BasicDBObject();
-
-                                    Impl.this.parse(andepr, subInnerBdo4And);
+                                    Impl.this.parse((MongoExpression) step.getScalar()[0], subInnerBdo4And);
                                     ands.add(subInnerBdo4And);
-                                    ands.add(innerBdbo);
 
-                                    query.append("$and", ands);
+                                    innerBdbo.clear();
+
+                                    innerBdbo.append("$and", ands);
 									break;
 								case Operator.OR:
                                     BasicDBObject pre4or = (BasicDBObject)innerBdbo.clone();//new BasicDBObject(innerBdbo.toMap());

@@ -602,7 +602,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             IntentParser.parse(getIntent(), expFactory, null, projection,
                     limiter, sorter, options);
-System.out.println(JSON.serialize(projection));
+
             if(!options.isEmpty())
                 prepareOptions(options);
 

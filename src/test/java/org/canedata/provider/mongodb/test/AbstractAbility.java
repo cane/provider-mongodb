@@ -20,6 +20,7 @@ import java.net.UnknownHostException;
 import java.util.Properties;
 import java.util.logging.LogManager;
 
+import com.mongodb.*;
 import org.canedata.CaneProvider;
 import org.canedata.entity.Command;
 import org.canedata.entity.Entity;
@@ -27,10 +28,6 @@ import org.canedata.entity.EntityFactory;
 import org.canedata.provider.mongodb.MongoProvider;
 import org.canedata.provider.mongodb.MongoResourceProvider;
 import org.canedata.provider.mongodb.command.Truncate;
-
-import com.mongodb.Mongo;
-import com.mongodb.MongoClient;
-import com.mongodb.MongoException;
 
 /**
  * 
@@ -106,7 +103,16 @@ public abstract class AbstractAbility {
 		e.put("age", 18).put("name", "cane provider").put("gender", 1).create();
 		e.put("age", 19).put("name", "mongo").put("gender", 2).create();
 		e.put("age", 63).put("name", "provider").put("gender", 1).put("vendor", "cane").create();
-		
+
+		BasicDBList sub = new BasicDBList();
+		for(int i = 0; i < 10; i ++){
+			BasicDBObject row = new BasicDBObject();
+			row.put("name", "name" + i);
+
+			sub.add(row);
+		}
+		e.put("name","multi").put("sub", sub).create("multixxx");
+
 		e.close();
 	}
 }

@@ -28,6 +28,7 @@ import java.util.Set;
 
 import com.mongodb.*;
 import com.mongodb.util.JSON;
+import org.bson.BSONObject;
 import org.canedata.cache.Cache;
 import org.canedata.cache.Cacheable;
 import org.canedata.core.field.AbstractWritableField;
@@ -370,6 +371,11 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                 public Tracer trace(Step step) throws AnalyzeBehaviourException {
                     switch (step.step()) {
                         case MongoStep.PROJECTION:
+                            if(step.getScalar()[0] instanceof BasicDBObject){
+                                projection.putAll((BSONObject)step.getScalar()[0]);
+                                break;
+                            }
+
                             for (Object field : step.getScalar()) {
                                 String f = (String) field;
                                 projection.put(f, 1);

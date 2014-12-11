@@ -22,6 +22,7 @@ import java.util.Vector;
 import java.util.regex.Pattern;
 
 import com.mongodb.BasicDBList;
+import com.mongodb.util.JSON;
 import org.bson.BSONObject;
 import org.canedata.core.intent.Step;
 import org.canedata.core.intent.Tracer;
@@ -53,6 +54,7 @@ public interface MongoExpressionFactory {
 		private static final Logger logger = LoggerFactory
 				.getLogger(Impl.class);
 
+
 		final Vector<MongoExpression> exprs = new Vector<MongoExpression>();
 
 		public Impl() {// expression for key
@@ -77,7 +79,7 @@ public interface MongoExpressionFactory {
 			exprs.clear();
 
 			if(logger.isDebug())
-                logger.debug("Expression is {0}.", query.toString());
+				logger.debug("Expression is {0}.", JSON.serialize(query));//logger.debug("Expression is {0}.", query.toString());
 
 			return query;
 		}

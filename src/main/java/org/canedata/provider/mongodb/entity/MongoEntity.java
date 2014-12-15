@@ -25,9 +25,11 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import com.mongodb.*;
 import com.mongodb.util.JSON;
+import com.sun.org.apache.xpath.internal.operations.Bool;
 import org.bson.BSONObject;
 import org.canedata.cache.Cache;
 import org.canedata.cache.Cacheable;
@@ -366,6 +368,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             final BasicDBObject projection = new BasicDBObject();
             final BasicDBObject options = new BasicDBObject();
+
             getIntent().playback(new Tracer() {
 
                 public Tracer trace(Step step) throws AnalyzeBehaviourException {
@@ -373,6 +376,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                         case MongoStep.PROJECTION:
                             if(step.getScalar()[0] instanceof BasicDBObject){
                                 projection.putAll((BSONObject)step.getScalar()[0]);
+
+                                options.put("disable_cache", true);
                                 break;
                             }
 
@@ -400,7 +405,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             bdbo.put("_id", keys[0]);
 
             // cache
-            if (null != getCache()) {
+            if (null != getCache() && !options.getBoolean("disable_cache", false) && options.getBoolean(Options.CACHEABLE, true)) {
                 String cacheKey = getKey().concat("#").concat(
                         keys[0].toString());
 
@@ -609,10 +614,12 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             IntentParser.parse(getIntent(), expFactory, null, projection,
                     limiter, sorter, options);
 
+            boolean useCache = null != getCache() && !options.getBoolean("disable_cache", false) && options.getBoolean(Options.CACHEABLE, true);
+
             if(!options.isEmpty())
                 prepareOptions(options);
 
-            if (null != getCache()) {// cache
+            if (useCache) {// cache
                 cursor = getCollection().find(expFactory.toQuery(),
                         new BasicDBObject().append("_id", 1));
             } else {// no cache
@@ -639,7 +646,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             if (limiter.count() > 0)
                 cursor.limit(limiter.count());
 
-            if (null != getCache()) {
+            if (useCache) {
                 Map<Object, MongoFields> missedCacheHits = new HashMap<Object, MongoFields>();
 
                 while (cursor.hasNext()) {

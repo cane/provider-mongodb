@@ -67,6 +67,7 @@ public class IntentParser {
 
 					if(step.getScalar()[0] instanceof BasicDBObject){
 						projection.putAll((BSONObject)step.getScalar()[0]);
+						options.put("disable_cache", true);
 						break;
 					}
 

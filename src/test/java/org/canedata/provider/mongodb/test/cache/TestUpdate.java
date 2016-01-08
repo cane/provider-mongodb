@@ -72,7 +72,7 @@ public class TestUpdate extends CacheAbilityProvider {
 		n.put("name", "name1");
 		e.put("$pull", new BasicDBObject("sub", n));
 
-		int rlt = e.updateRange(e.expr().equals("_id", "multixxx"));
+		int rlt = e.updateRange(e.expr().equals("sub.name", "name1"));
 		assertEquals(rlt, 1);
 	}
 }

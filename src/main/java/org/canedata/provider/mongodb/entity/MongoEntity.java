@@ -730,7 +730,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
      * Finds the first document in the query and updates it.
      * @see com.mongodb.DBCollection#findAndModify(com.mongodb.DBObject, com.mongodb.DBObject, com.mongodb.DBObject, boolean, com.mongodb.DBObject, boolean, boolean)
      * @param expr
-     * @return
+     * @return Fields
      */
     public Fields findAndUpdate(Expression expr) {
         if(logger.isDebug())
@@ -1252,17 +1252,25 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             if (fs.isEmpty())
                 return 0;
 
-            WriteResult wr = getCollection().update(query, fs, options.getBoolean(Options.UPSERT, false), true,
-                    getCollection().getWriteConcern());
-            if (!StringUtils.isBlank(wr.getError()))
-                throw new DataAccessException(wr.getError());
-
+            //position move to here, because query is not invalidate when $pull sub document.
             // invalidate cache
             if (null != getCache()) {
                 invalidateCache(query);
             }
 
-            return wr.getN();
+            WriteResult wr = getCollection().update(query, fs, options.getBoolean(Options.UPSERT, false), true,
+                    getCollection().getWriteConcern());
+            if (!StringUtils.isBlank(wr.getError()))
+                throw new DataAccessException(wr.getError());
+
+            int effected = wr.getN();
+
+            if(logger.isDebug())
+                logger.debug(
+                        "Updated entities({0}.{1}#expression is {2}), affected {3} ...",
+                        getSchema(), getName(), query.toString(), effected);
+
+            return effected;
         } catch (AnalyzeBehaviourException abe) {
             if(logger.isDebug())
                 logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
@@ -1462,6 +1470,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             cursor = getCollection().find(query,
                     new BasicDBObject().append("_id", 1));
 
+            logger.debug("Invalidate cache({0}), for {1} ...", query.toString(), cursor.count());
             while (cursor.hasNext()) {
                 String key = cursor.next().get("_id").toString();
                 String cacheKey = getKey().concat("#").concat(key);

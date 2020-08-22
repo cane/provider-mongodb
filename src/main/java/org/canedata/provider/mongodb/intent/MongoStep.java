@@ -57,9 +57,9 @@ public class MongoStep extends AbstractStep {
 	private static final Map<Integer, String> steps = new HashMap<Integer, String>();
 	
 	/**
-	 * @param step
-	 * @param pur
-	 * @param scalar
+	 * @param step current step
+	 * @param pur purpose
+	 * @param scalar params
 	 */
 	public MongoStep(int step, String pur, Object[] scalar) {
 		super(step, pur, scalar);

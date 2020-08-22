@@ -29,7 +29,6 @@ import java.util.function.BiFunction;
 
 import com.mongodb.*;
 import com.mongodb.util.JSON;
-import com.sun.org.apache.xpath.internal.operations.Bool;
 import org.bson.BSONObject;
 import org.canedata.cache.Cache;
 import org.canedata.cache.Cacheable;
@@ -308,10 +307,12 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             // cache
             if (null != getCache()) {
+                String cacheKey = getKey().concat("#").concat(
+                        keys[0].toString());
                 if(logger.isDebug())
                     logger.debug("Invalid fields to cache, cache key is {0} ...",
-                        fields.getKey());
-                getCache().remove(key);
+                            cacheKey);
+                getCache().remove(cacheKey);
             }
 
             if(logger.isDebug())
@@ -729,7 +730,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * Finds the first document in the query and updates it.
      * @see com.mongodb.DBCollection#findAndModify(com.mongodb.DBObject, com.mongodb.DBObject, com.mongodb.DBObject, boolean, com.mongodb.DBObject, boolean, boolean)
-     * @param expr
+     * @param expr Expression
      * @return Fields
      */
     public Fields findAndUpdate(Expression expr) {
@@ -905,6 +906,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
     /**
      * @deprecated UnsupportedOperation
+     * @param target target
      */
     public Entity join(Entity target) {
         throw new UnsupportedOperationException("Unsupported operation <join>.");
@@ -912,6 +914,9 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
     /**
      * @deprecated UnsupportedOperation
+     * @param target target
+     * @param type join type
+     * @param on on expr
      */
     public Entity joinOn(Entity target, Joint type, String on) {
         throw new UnsupportedOperationException(
@@ -920,6 +925,9 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
     /**
      * @deprecated UnsupportedOperation
+     * @param target target entity
+     * @param type join type
+     * @param using using fields
      */
     public Entity joinUsing(Entity target, Joint type, String... using) {
         throw new UnsupportedOperationException(

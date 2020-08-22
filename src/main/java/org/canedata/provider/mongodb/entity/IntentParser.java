@@ -16,6 +16,7 @@
 
 package org.canedata.provider.mongodb.entity;
 
+import org.bson.BSONObject;
 import org.canedata.core.intent.Step;
 import org.canedata.core.intent.Tracer;
 import org.canedata.core.logging.LoggerFactory;
@@ -63,6 +64,12 @@ public class IntentParser {
 				case MongoStep.PROJECTION:
 					if (null == projection)
 						break;
+
+					if(step.getScalar()[0] instanceof BasicDBObject){
+						projection.putAll((BSONObject)step.getScalar()[0]);
+						options.put("disable_cache", true);
+						break;
+					}
 
 					for (Object field : step.getScalar()) {
 						String f = (String) field;

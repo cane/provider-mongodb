@@ -28,9 +28,9 @@ public class MongoExprStep extends AbstractStep {
 			"et", "net", "nl", "nnl", "mch", "nmch", "and", "andn", "or", "orn" };
 
 	/**
-	 * @param step
-	 * @param pur
-	 * @param scalar
+	 * @param step current step
+	 * @param pur purpose
+	 * @param scalar params
 	 */
 	public MongoExprStep(int step, String pur, Object[] scalar) {
 		super(step, pur, scalar);

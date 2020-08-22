@@ -95,4 +95,10 @@ public interface Options {
      * @see com.mongodb.DBCollection#setWriteConcern(com.mongodb.WriteConcern)
      */
     public static final String WRITE_CONCERN = "writeConcern";
+
+    /**
+     * boolean type, default is getCache() != null. IF the value is false,
+     * then the cache is invalid during current operation.
+     */
+    public static final String CACHEABLE = "cacheable";
 }

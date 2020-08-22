@@ -25,9 +25,11 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import com.mongodb.*;
 import com.mongodb.util.JSON;
+import org.bson.BSONObject;
 import org.canedata.cache.Cache;
 import org.canedata.cache.Cacheable;
 import org.canedata.core.field.AbstractWritableField;
@@ -305,10 +307,12 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             // cache
             if (null != getCache()) {
+                String cacheKey = getKey().concat("#").concat(
+                        keys[0].toString());
                 if(logger.isDebug())
                     logger.debug("Invalid fields to cache, cache key is {0} ...",
-                        fields.getKey());
-                getCache().remove(key);
+                            cacheKey);
+                getCache().remove(cacheKey);
             }
 
             if(logger.isDebug())
@@ -340,6 +344,12 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
         return this;
     }
 
+    public Entity projection(BasicDBObject projections) {
+        getIntent().step(MongoStep.PROJECTION, null, projections);
+
+        return this;
+    }
+
     public Entity select(String... projection) {
         return projection(projection);
     }
@@ -359,11 +369,19 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
             final BasicDBObject projection = new BasicDBObject();
             final BasicDBObject options = new BasicDBObject();
+
             getIntent().playback(new Tracer() {
 
                 public Tracer trace(Step step) throws AnalyzeBehaviourException {
                     switch (step.step()) {
                         case MongoStep.PROJECTION:
+                            if(step.getScalar()[0] instanceof BasicDBObject){
+                                projection.putAll((BSONObject)step.getScalar()[0]);
+
+                                options.put("disable_cache", true);
+                                break;
+                            }
+
                             for (Object field : step.getScalar()) {
                                 String f = (String) field;
                                 projection.put(f, 1);
@@ -388,7 +406,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             bdbo.put("_id", keys[0]);
 
             // cache
-            if (null != getCache()) {
+            if (null != getCache() && !options.getBoolean("disable_cache", false) && options.getBoolean(Options.CACHEABLE, true)) {
                 String cacheKey = getKey().concat("#").concat(
                         keys[0].toString());
 
@@ -597,10 +615,12 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             IntentParser.parse(getIntent(), expFactory, null, projection,
                     limiter, sorter, options);
 
+            boolean useCache = null != getCache() && !options.getBoolean("disable_cache", false) && options.getBoolean(Options.CACHEABLE, true);
+
             if(!options.isEmpty())
                 prepareOptions(options);
 
-            if (null != getCache()) {// cache
+            if (useCache) {// cache
                 cursor = getCollection().find(expFactory.toQuery(),
                         new BasicDBObject().append("_id", 1));
             } else {// no cache
@@ -627,7 +647,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             if (limiter.count() > 0)
                 cursor.limit(limiter.count());
 
-            if (null != getCache()) {
+            if (useCache) {
                 Map<Object, MongoFields> missedCacheHits = new HashMap<Object, MongoFields>();
 
                 while (cursor.hasNext()) {
@@ -710,8 +730,8 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * Finds the first document in the query and updates it.
      * @see com.mongodb.DBCollection#findAndModify(com.mongodb.DBObject, com.mongodb.DBObject, com.mongodb.DBObject, boolean, com.mongodb.DBObject, boolean, boolean)
-     * @param expr
-     * @return
+     * @param expr Expression
+     * @return Fields
      */
     public Fields findAndUpdate(Expression expr) {
         if(logger.isDebug())
@@ -886,6 +906,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
     /**
      * @deprecated UnsupportedOperation
+     * @param target target
      */
     public Entity join(Entity target) {
         throw new UnsupportedOperationException("Unsupported operation <join>.");
@@ -893,6 +914,9 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
     /**
      * @deprecated UnsupportedOperation
+     * @param target target
+     * @param type join type
+     * @param on on expr
      */
     public Entity joinOn(Entity target, Joint type, String on) {
         throw new UnsupportedOperationException(
@@ -901,6 +925,9 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
     /**
      * @deprecated UnsupportedOperation
+     * @param target target entity
+     * @param type join type
+     * @param using using fields
      */
     public Entity joinUsing(Entity target, Joint type, String... using) {
         throw new UnsupportedOperationException(
@@ -1233,17 +1260,25 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             if (fs.isEmpty())
                 return 0;
 
-            WriteResult wr = getCollection().update(query, fs, options.getBoolean(Options.UPSERT, false), true,
-                    getCollection().getWriteConcern());
-            if (!StringUtils.isBlank(wr.getError()))
-                throw new DataAccessException(wr.getError());
-
+            //position move to here, because query is not invalidate when $pull sub document.
             // invalidate cache
             if (null != getCache()) {
                 invalidateCache(query);
             }
 
-            return wr.getN();
+            WriteResult wr = getCollection().update(query, fs, options.getBoolean(Options.UPSERT, false), true,
+                    getCollection().getWriteConcern());
+            if (!StringUtils.isBlank(wr.getError()))
+                throw new DataAccessException(wr.getError());
+
+            int effected = wr.getN();
+
+            if(logger.isDebug())
+                logger.debug(
+                        "Updated entities({0}.{1}#expression is {2}), affected {3} ...",
+                        getSchema(), getName(), query.toString(), effected);
+
+            return effected;
         } catch (AnalyzeBehaviourException abe) {
             if(logger.isDebug())
                 logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
@@ -1443,6 +1478,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             cursor = getCollection().find(query,
                     new BasicDBObject().append("_id", 1));
 
+            logger.debug("Invalidate cache({0}), for {1} ...", query.toString(), cursor.count());
             while (cursor.hasNext()) {
                 String key = cursor.next().get("_id").toString();
                 String cacheKey = getKey().concat("#").concat(key);

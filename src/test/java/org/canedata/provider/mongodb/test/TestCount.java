@@ -19,6 +19,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 import org.canedata.entity.Entity;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -28,16 +29,19 @@ import org.junit.Test;
  */
 public class TestCount extends AbilityProvider{
 	private static final String ENTITY = "user";
-	
+
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void sample(){
 		Entity e = factory.get(ENTITY);
 		assertNotNull(e);
-		
+
 		int c = e.count().intValue();
-		assertEquals(c, 8);
-		
-		e.close();
+		assertEquals(c, 9);
 	}
 	
 	@Test
@@ -47,8 +51,6 @@ public class TestCount extends AbilityProvider{
 		
 		int c = e.filter(e.expr().like("name", "cane")).count().intValue();
 		assertEquals(c, 2);
-		
-		e.close();
 	}
 	
 	@Test
@@ -57,9 +59,7 @@ public class TestCount extends AbilityProvider{
 		assertNotNull(e);
 		
 		int c = e.filter(e.expr().notLike("name", "cane")).count().intValue();
-		assertEquals(c, 6);
-		
-		e.close();
+		assertEquals(c, 7);
 	}
 	
 	@Test
@@ -71,8 +71,6 @@ public class TestCount extends AbilityProvider{
 		assertEquals(c, 2);
 		
 		c = e.filter(e.expr().notLike("name", "cane")).count().intValue();
-		assertEquals(c, 6);
-		
-		e.close();
+		assertEquals(c, 7);
 	}
 }

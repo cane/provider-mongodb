@@ -24,6 +24,7 @@ import java.util.List;
 
 import org.canedata.entity.Entity;
 import org.canedata.field.Fields;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -32,6 +33,11 @@ import org.junit.Test;
  * @version 1.00.000 2012-2-25
  */
 public class TestDistinct extends AbilityProvider {
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void distinct() {
 		Entity e = factory.get("user");
@@ -39,7 +45,7 @@ public class TestDistinct extends AbilityProvider {
 
 		List<Fields> rlt = e.distinct("name");
 		assertFalse(rlt.isEmpty());
-		assertEquals(rlt.size(), 4);
+		assertEquals(rlt.size(), 5);
 
         validate(rlt);
 	}

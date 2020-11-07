@@ -15,23 +15,32 @@
  */
 package org.canedata.provider.mongodb;
 
-import com.mongodb.DB;
-import com.mongodb.MongoClient;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoDatabase;
+import org.bson.codecs.Codec;
+import org.bson.codecs.configuration.CodecRegistry;
+import org.canedata.provider.mongodb.codecs.BigIntegerCodec;
+import org.canedata.provider.mongodb.codecs.StringsCodec;
 import org.canedata.resource.Resource;
 import org.canedata.resource.ResourceProvider;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
- * 
+ *  * update to driver 4.1
+ *  * @author Sun Yitao
+ *  * @version 1.1.0 2020-08-24
+ *
  * @author Sun Yat-ton
  * @version 1.00.000 2011-8-1
  */
-public class MongoResourceProvider implements ResourceProvider {
+public class MongoResourceProvider implements ResourceProvider<MongoDatabase> {
 	private static final String NAME = "Resource provider for MongoDB";
 	private static final String VENDOR = "Cane team";
-	private static final int VERSION = 1;
+	private static final int VERSION = 2; // since 0.6 support mongo drive 4.1
 	private static final Map<String, Object> EXTRAS = new HashMap<String, Object>();
 	private static final Map<String, String[]> authentications = new HashMap<String, String[]>();
 	
@@ -39,6 +48,12 @@ public class MongoResourceProvider implements ResourceProvider {
 	
 	private MongoClient mongo = null;
 	private MongoResource resource;
+
+	private CodecRegistry codecRegistry = null;
+	private List<Codec<?>> codecs = new ArrayList(){{
+		//add(new BigIntegerCodec());
+		//add(new StringsCodec());
+	}};
 	
 	/**
 	 * for inject.
@@ -73,14 +88,38 @@ public class MongoResourceProvider implements ResourceProvider {
 		return EXTRAS;
 	}
 
-	public Object getExtra(String key) {
-		return EXTRAS.get(key);
+	public <T> T getExtra(String key) {
+		return (T)EXTRAS.get(key);
 	}
 
-	public synchronized Resource<DB> getResource() {
+	public MongoResourceProvider setExtra(String key, Object val) {
+		EXTRAS.put(key, val);
+		return this;
+	}
+
+	public MongoResourceProvider registerCodecs(Codec<?>...codec) {
+		this.codecs.addAll(codecs);
+
+		return this;
+	}
+
+	public MongoResourceProvider withCodecRegistry(CodecRegistry r) {
+		this.codecRegistry = r;
+
+		return this;
+	}
+
+	protected List<Codec<?>> getCodecs() {
+		return codecs;
+	}
+
+	protected CodecRegistry getCodecRegistry() {
+		return codecRegistry;
+	}
+
+	public synchronized Resource<MongoDatabase> getResource() {
 		if(null == resource){
 			resource = new MongoResource(){
-
 				@Override
                 MongoClient getMongo() {
 					return MongoResourceProvider.this.getMongo();

@@ -23,5 +23,11 @@ import org.canedata.core.field.AbstractReadableField;
  * @version 1.00.000 2011-6-2
  */
 public abstract class MongoReadableField extends AbstractReadableField {
-	
+    @Override
+    public byte[] getBytes() {
+        if (get() instanceof  org.bson.types.Binary) {
+            return ((org.bson.types.Binary)get()).getData();
+        }
+        return super.getBytes();
+    }
 }

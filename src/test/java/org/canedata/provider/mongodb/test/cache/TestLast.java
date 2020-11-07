@@ -22,6 +22,7 @@ import static org.junit.Assert.assertTrue;
 
 import org.canedata.entity.Entity;
 import org.canedata.field.Fields;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -30,6 +31,11 @@ import org.junit.Test;
  * @version 1.00.000 2011-9-2
  */
 public class TestLast extends CacheAbilityProvider {
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void last() {
 		Entity e = factory.get("user");

@@ -22,8 +22,10 @@ import static org.junit.Assert.assertTrue;
 import java.util.Arrays;
 import java.util.List;
 
+import org.bson.Document;
 import org.canedata.entity.Entity;
 import org.canedata.field.Fields;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -32,7 +34,11 @@ import org.junit.Test;
  * @version 1.00.000 2011-8-15
  */
 public class TestQuery extends AbilityProvider {
-	
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void proj(){
 		Entity e = factory.get("user");
@@ -44,8 +50,9 @@ public class TestQuery extends AbilityProvider {
 		
 		f = e.orderDESC("age").first();
 		assertNotNull(f);
-		assertEquals(Arrays.toString(f.getFieldNames()), "[_id, age, name, gender]");
-		assertEquals(f.getFieldNames().length, 4);
+
+		assertEquals(Arrays.toString(f.getFieldNames()), "[_id, age, name, gender, vendor]");
+		assertEquals(f.getFieldNames().length, 5);
 		
 	}
 	
@@ -57,8 +64,6 @@ public class TestQuery extends AbilityProvider {
 		Fields f = e.projection("name").filter(e.expr().equals("name", "cane")).first();
 		assertNotNull(f);
 		assertEquals(f.getString("name"), "cane");
-		
-		e.close();
 	}
 	
 	@Test
@@ -67,9 +72,7 @@ public class TestQuery extends AbilityProvider {
 		assertNotNull(e);
 		
 		int c = e.projection("name").filter(e.expr().notEquals("name", "cane")).count().intValue();
-		assertEquals(c, 7);
-		
-		e.close();
+		assertEquals(c, 8);
 	}
 	
 	@Test
@@ -78,8 +81,6 @@ public class TestQuery extends AbilityProvider {
 		assertNotNull(e);
 		
 		assertEquals(e.projection("name", "age").filter(e.expr().between("age", 18, 64)).count(), 3l);
-		
-		e.close();
 	}
 	
 	@Test
@@ -88,8 +89,6 @@ public class TestQuery extends AbilityProvider {
 		assertNotNull(e);
 		
 		assertEquals(e.projection("name", "age").filter(e.expr().notBetween("age", 63, 64)).count(), 6l);
-		
-		e.close();
 	}
 	
 	@Test
@@ -98,8 +97,6 @@ public class TestQuery extends AbilityProvider {
 		assertNotNull(e);
 		
 		assertEquals(e.filter(e.expr().greaterThan("age", 18)).count(), 2l);
-		
-		e.close();
 	}
 	
 	@Test
@@ -111,19 +108,19 @@ public class TestQuery extends AbilityProvider {
 		assertNotNull(f);
 		
 		assertEquals(f.getInt("age"), 19);
-		
-		e.close();
 	}
 	
 	@Test
 	public void in(){
 		Entity e = factory.get("user");
 		assertNotNull(e);
-		
+
+		int c = e.filter(e.expr().in("age", new Object[]{18, 19})).count().intValue();
+
 		List<Fields> fs = e.filter(e.expr().in("age", new Object[]{18, 19})).order("age").list();
 		assertNotNull(fs);
 		assertTrue(!fs.isEmpty());
-		
+
 		assertEquals(fs.size(), 2);
 		
 		Fields f1 = fs.get(0);
@@ -131,8 +128,6 @@ public class TestQuery extends AbilityProvider {
 		
 		Fields f2 = fs.get(1);
 		assertEquals(f2.getInt("age"), 19);
-		
-		e.close();
 	}
 	
 	@Test
@@ -141,7 +136,7 @@ public class TestQuery extends AbilityProvider {
 		assertNotNull(e);
 		
 		int c = e.filter(e.expr().notIn("age", new Object[]{18, 19})).order("age").count().intValue();
-		assertEquals(c, 6);
+		assertEquals(c, 7);
 		
 		e.close();
 	}
@@ -163,7 +158,7 @@ public class TestQuery extends AbilityProvider {
 		assertNotNull(e);
 		
 		int c = e.filter(e.expr().isNotEmpty("vendor")).count().intValue();
-		assertEquals(c, 1);
+		assertEquals(c, 2);
 		
 		e.close();
 	}
@@ -186,7 +181,7 @@ public class TestQuery extends AbilityProvider {
 		assertNotNull(e);
 		
 		int c = e.filter(e.expr().isNotNull("name")).count().intValue();
-		assertEquals(c, 4);
+		assertEquals(c, 5);
 		
 		e.close();
 	}
@@ -228,7 +223,7 @@ public class TestQuery extends AbilityProvider {
 		assertNotNull(e);
 		
 		int c = e.filter(e.expr().notLike("name", "cane")).count().intValue();
-		assertEquals(c, 6);
+		assertEquals(c, 7);
 	}
 	
 	@Test
@@ -248,7 +243,7 @@ public class TestQuery extends AbilityProvider {
 		assertNotNull(e);
 		
 		int c = e.filter(e.expr().notMatch("name", "cane.*")).count().intValue();
-		assertEquals(c, 6);
+		assertEquals(c, 7);
 		
 		e.close();
 	}

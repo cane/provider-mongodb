@@ -15,6 +15,7 @@
  */
 package org.canedata.provider.mongodb.expr;
 
+import org.canedata.entity.Entity;
 import org.canedata.expression.Expression;
 import org.canedata.expression.ExpressionBuilder;
 import org.canedata.expression.shield.ExpressionA;
@@ -40,6 +41,10 @@ public class MongoExpressionBuilder extends MongoExpressionB implements
 	protected ExpressionA getExpressionA() {
 		if (null == mongoExpr)
 			mongoExpr = new MongoExpression() {
+				@Override
+				public MongoEntity end() {
+					return target;
+				}
 
 				@Override
 				protected ExpressionB getExpressionB() {

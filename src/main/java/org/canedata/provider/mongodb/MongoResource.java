@@ -15,32 +15,39 @@
  */
 package org.canedata.provider.mongodb;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoDatabase;
+import org.bson.codecs.Codec;
+import org.bson.codecs.configuration.CodecRegistries;
+import org.bson.codecs.configuration.CodecRegistry;
 import org.canedata.core.logging.LoggerFactory;
 import org.canedata.core.util.StringUtils;
 import org.canedata.logging.Logger;
+import org.canedata.provider.mongodb.codecs.BigIntegerCodec;
 import org.canedata.resource.Resource;
 import org.canedata.resource.meta.EntityMeta;
 import org.canedata.resource.meta.RepositoryMeta;
 
-import com.mongodb.DB;
-import com.mongodb.Mongo;
-
 /**
- * 
+ * update to driver 4.1
+ * @author Sun Yitao
+ * @version 1.1.0 2020-08-24
+ *
  * @author Sun Yat-ton
  * @version 1.00.000 2011-8-1
  */
-public abstract class MongoResource implements Resource<DB> {
+public abstract class MongoResource implements Resource<MongoDatabase> {
 	final static Logger logger = LoggerFactory.getLogger(MongoResource.class);
 
 	private static String NAME = "Resource for mongo-java-driver";
 	private static String VERSION = "2.6.3";
 
-	abstract Mongo getMongo();
+	abstract MongoClient getMongo();
 
 	abstract MongoResourceProvider getProvider();
 
@@ -61,7 +68,10 @@ public abstract class MongoResource implements Resource<DB> {
 	}
 
 	public List<RepositoryMeta> getRepositories() {
-		List<String> dbs = getMongo().getDatabaseNames();
+		List<String> dbs = new ArrayList<>();
+		/*getMongo().listDatabaseNames().forEach((i) -> {
+			System.out.println(i);
+		});*/
 		List<RepositoryMeta> reps = new ArrayList<RepositoryMeta>(dbs.size());
 
 		for (final String name : dbs) {
@@ -112,16 +122,16 @@ public abstract class MongoResource implements Resource<DB> {
 		return reps;
 	}
 
-	public DB take() {
+	public MongoDatabase take() {
 		String dbname = getProvider().getDefaultDBName();
 		if (StringUtils.isBlank(dbname)) {
-			dbname = getMongo().getDatabaseNames().get(0);
+			dbname = getRepositories().get(0).getName();
 		}
 
 		return take(dbname);
 	}
 
-	public DB take(Object... args) {
+	public MongoDatabase take(Object... args) {
 		if (args == null || args.length == 0)
 			throw new IllegalArgumentException(
 					"Must specify the database name.");
@@ -130,49 +140,70 @@ public abstract class MongoResource implements Resource<DB> {
 		if(logger.isDebug())
             logger.debug("Taking the resource {0}.", dbname);
 
-		DB db = getMongo().getDB(dbname);
+		MongoDatabase db = getMongo().getDatabase(dbname);
 
 		if (getProvider().getAuthentications().containsKey(dbname)) {
 			String[] auth = getProvider().getAuthentications().get(dbname);
 
+			/* TODO implement for driver 4.1
 			if (!db.authenticate(auth[0], auth[1].toCharArray())) {
 				throw new RuntimeException("Authenticate failure!");
-			}
+			}*/
 		}
 
-		db.requestStart();
-		db.requestEnsureConnection();
-		return db;
+		return prepareCodec(db);
 	}
 
-	public DB take(boolean exclusive) {
+	private MongoDatabase prepareCodec(MongoDatabase origin) {
+		if (getProvider().getCodecRegistry() != null)
+			return origin.withCodecRegistry(getProvider().getCodecRegistry());
+
+		List<Codec<?>> _codecs = getProvider().getCodecs();
+		if(!_codecs.isEmpty()) {
+			CodecRegistry _codec = CodecRegistries.fromRegistries(origin.getCodecRegistry(), CodecRegistries.fromCodecs(_codecs));
+			return origin.withCodecRegistry(_codec);
+		}
+
+		return origin;
+	}
+
+	public MongoDatabase take(boolean exclusive) {
 		return take();
 	}
 
-	public DB take(boolean exclusive, Object... args) {
+	public MongoDatabase take(boolean exclusive, Object... args) {
 		return take(args);
 	}
 
-	public DB checkout() {
+	public MongoDatabase checkout() {
 		return take(true);
 	}
 
-	public DB checkout(Object... args) {
+	public MongoDatabase checkout(Object... args) {
 		return take(true, args);
 	}
 
-	public Resource<DB> release(Object target) {
-		if (!(target instanceof DB))
+	public Resource<MongoDatabase> release(Object target) {
+		if (!(target instanceof MongoDatabase))
 			throw new IllegalArgumentException(
 					"Specifies the instance of the target is not "
-							+ DB.class.getName());
+							+ MongoDatabase.class.getName());
 
 		if(logger.isDebug())
-            logger.debug("Release the resource {0}.", ((DB) target).getName());
+            logger.debug("Release the resource {0}.", ((MongoDatabase) target).getName());
 
-		((DB) target).requestDone();
+		//((MongoDatabase) target).drop();
 
 		return this;
 	}
 
+	@Override
+	public void close() {
+		//throw new RuntimeException("Don't implemented!!!");
+	}
+
+	@Override
+	public boolean hasClosed() {
+		return false;
+	}
 }

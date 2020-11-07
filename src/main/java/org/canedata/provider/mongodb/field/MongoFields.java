@@ -17,15 +17,14 @@ package org.canedata.provider.mongodb.field;
 
 import java.util.Set;
 
-import org.bson.types.ObjectId;
+import org.bson.Document;
 import org.canedata.core.field.AbstractFields;
-import org.canedata.core.util.ByteUtil;
+import org.canedata.core.util.StringUtils;
 import org.canedata.field.Field;
 import org.canedata.field.Fields;
 import org.canedata.provider.mongodb.entity.MongoEntity;
 import org.canedata.provider.mongodb.intent.MongoIntent;
 
-import com.mongodb.BasicDBObject;
 
 /**
  * 
@@ -33,64 +32,58 @@ import com.mongodb.BasicDBObject;
  * @version 1.00.000 2011-6-3
  */
 public class MongoFields extends AbstractFields {
-	MongoEntity entity = null;
-	MongoIntent intent = null;
-	BasicDBObject target = null;
+	Document target = null;
 	String key = null;
 
 	public MongoFields(){
 		
 	}
-	
-	public MongoFields(MongoEntity entity, MongoIntent intent) {
-		this.entity = entity;
-		this.intent = intent;
+
+	public MongoFields(String key) {
+		this.key = key;
 	}
-	
-	public MongoFields(MongoEntity entity, MongoIntent intent,
-			BasicDBObject target) {
-		this.entity = entity;
-		this.intent = intent;
+
+	@Override
+	public boolean isWrappedFor(Class<?> iface) {
+		return iface.isInstance(target);
+	}
+
+	@Override
+	public <T> T unwrap(Class<T> iface) {
+		return iface.cast(target);
+	}
+
+	@Override
+	public <T> T get(String field) {
+		return (T)target.get(field);
+	}
+
+	public <T> T get(String field, Class<T> tClass) {
+		return tClass.cast(target.get(field));
+	}
+
+	public MongoFields(String key,
+					   Document target) {
+		this.key = key;
 
 		this.target = target;
-		
-		key = entity.getKey().concat("#").concat(get("_id").toString());
-	}
-	
-	public MongoFields(MongoEntity entity, MongoIntent intent,
-			String column, Object value) {
-		this.entity = entity;
-		this.intent = intent;
 
-		this.target = new BasicDBObject();
-		this.target.put(column, value);
-		
-		key = entity.getKey().concat("/").concat(column).concat("#").concat(value == null?"":value.toString());
+		if(target.containsKey("_id") && target.get("_id") != null)
+			key = key.concat(get("_id").toString());
+		else
+			key = key.concat(String.valueOf(target.hashCode()));
 	}
 
-	public MongoFields putTarget(BasicDBObject t){
+	public MongoFields putTarget(Document t){
 		target = t;
 		
 		return this;
 	}
 	
-	public BasicDBObject getTarget(){
-		return target;
-	}
-	
-	public MongoFields put(MongoEntity entity, MongoIntent intent, BasicDBObject target){
-		this.entity = entity;
-		this.intent = intent;
-		
-		this.target = target;
-		
-		key = entity.getKey().concat("#").concat(get("_id").toString());
-		
-		return this;
-	}
-	
 	public MongoFields clone(){
-		MongoFields nmf = new MongoFields(entity, intent, (BasicDBObject)target.clone());
+		Document d = new Document();
+		d.putAll(target);
+		MongoFields nmf = new MongoFields(key, d);
 		nmf.isRestored = isRestored;
 		nmf.cacheTime = cacheTime;
 		
@@ -107,10 +100,6 @@ public class MongoFields extends AbstractFields {
 	public String[] getFieldNames() {
 		return target.keySet().toArray(new String[target.keySet().size()]);
 	}
-
-    public <T> T get(String field) {
-        return (T)target.get(field);
-    }
 
     public MongoReadableField getField(final String field) {
 //		if (!target.keySet().contains(field))
@@ -156,18 +145,16 @@ public class MongoFields extends AbstractFields {
 	}
 
 	public boolean exist(String field) {
-		return target.containsField(field) && target.get(field) != null;
+		return target.containsKey(field) && target.get(field) != null;
 	}
 
 	public boolean contains(String field) {
-		return target.containsField(field);
+		return target.containsKey(field);
 	}
 	
 
 
 	public void reset() {
-		entity = null;
-		intent = null;
 		isRestored = false;
 		cacheTime = -1;
 		target = null;

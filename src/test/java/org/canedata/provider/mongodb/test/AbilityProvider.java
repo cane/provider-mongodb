@@ -15,7 +15,7 @@
  */
 package org.canedata.provider.mongodb.test;
 
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 /**
  * 
@@ -24,13 +24,12 @@ import org.junit.BeforeClass;
  */
 public class AbilityProvider extends AbstractAbility {
 	
-	@BeforeClass
-	public static void baseInit() {
+	@Before
+	public void baseInit() {
 		AbilityProvider p = new AbilityProvider();
 		p.initLogManager();
 		p.initConf();
 		p.initProvider();
 		p.initFactory();
-		p.initData();
 	}
 }

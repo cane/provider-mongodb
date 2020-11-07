@@ -27,11 +27,16 @@ import org.canedata.core.logging.LoggerFactory;
 import org.canedata.core.util.StringUtils;
 import org.canedata.entity.EntityFactory;
 import org.canedata.logging.Logger;
+import org.canedata.module.Module;
+import org.canedata.provider.mongodb.entity.MongoEntity;
 import org.canedata.provider.mongodb.entity.MongoEntityFactory;
 import org.canedata.resource.ResourceProvider;
 
 /**
- * 
+ * update VERSION to 2, and support mongo driver 4.1
+ * @author Sun Yitao
+ * @version 1.1.000 2020-08024
+ *
  * @author Sun Yat-ton
  * @version 1.00.000 2011-8-1
  */
@@ -40,7 +45,7 @@ public class MongoProvider implements CaneProvider {
 
 	private static String NAME = "Cane provider for MongoDB";
 	private static String VENDOR = "Cane team";
-	private static int VERSION = 1;
+	private static int VERSION = 2;
 	private Map<String, Object> extras = new HashMap<String, Object>();
 
 	public MongoProvider(){
@@ -126,4 +131,9 @@ public class MongoProvider implements CaneProvider {
 		return extras.get(key);
 	}
 
+	@Override
+	public MongoProvider setExtra(String key, Object val) {
+		extras.put(key, val);
+		return this;
+	}
 }

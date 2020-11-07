@@ -15,7 +15,11 @@
  */
 package org.canedata.provider.mongodb.expr;
 
+import org.canedata.core.field.expr.MongoOperator;
 import org.canedata.core.intent.Step.AbstractStep;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 
@@ -25,7 +29,14 @@ import org.canedata.core.intent.Step.AbstractStep;
 public class MongoExprStep extends AbstractStep {
 	public static final String[] names = new String[] { "eq", "neq", "lt",
 			"lte", "gt", "gte", "bt", "nbt", "like", "nlike", "in", "nin",
-			"et", "net", "nl", "nnl", "mch", "nmch", "and", "andn", "or", "orn" };
+			"et", "net", "nl", "nnl", "mch", "nmch", "and", "andn", "or", "orn", "all", "other" };
+
+	static final Map<Integer, String> name_mapper = new HashMap(){{
+		put(MongoOperator.EQUALS, "eq");
+		put(MongoOperator.NOT_EQUALS, "neq");
+		put(MongoOperator.LESSTHAN, "lt");
+		put(MongoOperator.LESSTHAN_OR_EQUAL, "lte");
+	}};
 
 	/**
 	 * @param step current step
@@ -37,7 +48,7 @@ public class MongoExprStep extends AbstractStep {
 	}
 
 	public String getName() {
-		return names[step() - 1];
+		return name_mapper.get(step());
 	}
 
 }

@@ -1,12 +1,12 @@
 /**
  * Copyright 2011 CaneData.org
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,28 +15,29 @@
  */
 package org.canedata.provider.mongodb.entity;
 
-import java.io.Serializable;
-import java.lang.reflect.MalformedParameterizedTypeException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.NoSuchElementException;
-import java.util.Set;
-import java.util.function.BiFunction;
-
-import com.mongodb.*;
-import com.mongodb.util.JSON;
-import org.bson.BSONObject;
+import com.mongodb.BasicDBObject;
+import com.mongodb.ReadConcern;
+import com.mongodb.ReadPreference;
+import com.mongodb.WriteConcern;
+import com.mongodb.client.DistinctIterable;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.model.*;
+import com.mongodb.client.result.DeleteResult;
+import com.mongodb.client.result.InsertOneResult;
+import com.mongodb.client.result.UpdateResult;
+import org.bson.Document;
+import org.bson.codecs.Codec;
+import org.bson.codecs.configuration.CodecRegistries;
+import org.bson.codecs.configuration.CodecRegistry;
+import org.bson.conversions.Bson;
+import org.bson.types.ObjectId;
 import org.canedata.cache.Cache;
 import org.canedata.cache.Cacheable;
 import org.canedata.core.field.AbstractWritableField;
-import org.canedata.core.intent.Step;
-import org.canedata.core.intent.Tracer;
-import org.canedata.core.logging.LoggerFactory;
 import org.canedata.core.intent.Limiter;
+import org.canedata.core.logging.LoggerFactory;
 import org.canedata.core.util.StringUtils;
 import org.canedata.entity.Batch;
 import org.canedata.entity.Command;
@@ -44,7 +45,6 @@ import org.canedata.entity.Entity;
 import org.canedata.entity.Joint;
 import org.canedata.exception.AnalyzeBehaviourException;
 import org.canedata.exception.DataAccessException;
-import org.canedata.exception.EntityNotFoundException;
 import org.canedata.expression.Expression;
 import org.canedata.expression.ExpressionBuilder;
 import org.canedata.field.Field;
@@ -52,6 +52,9 @@ import org.canedata.field.Fields;
 import org.canedata.field.WritableField;
 import org.canedata.logging.Logger;
 import org.canedata.provider.mongodb.MongoResource;
+import org.canedata.provider.mongodb.codecs.BigIntegerCodec;
+import org.canedata.provider.mongodb.codecs.StringsCodec;
+import org.canedata.provider.mongodb.command.Aggregate;
 import org.canedata.provider.mongodb.expr.MongoExpression;
 import org.canedata.provider.mongodb.expr.MongoExpressionBuilder;
 import org.canedata.provider.mongodb.expr.MongoExpressionFactory;
@@ -62,7 +65,16 @@ import org.canedata.provider.mongodb.intent.MongoStep;
 import org.canedata.ta.Transaction;
 import org.canedata.ta.TransactionHolder;
 
+import javax.sound.midi.Soundbank;
+import java.io.Serializable;
+import java.math.BigInteger;
+import java.util.*;
+import java.util.Map.Entry;
+
 /**
+ * update for support mongodb 4
+ *
+ * @author Sun Yitao
  * @author Sun Yat-ton
  * @version 1.00.000 2011-7-29
  */
@@ -77,7 +89,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
     protected abstract MongoIntent getIntent();
 
-    abstract DBCollection getCollection();
+    abstract MongoCollection<Document> getCollection();
 
     abstract MongoResource getResource();
 
@@ -90,7 +102,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                 .concat(":").concat(getName());
     }
 
-    public Entity put(String key, Object value) {
+    public MongoEntity put(String key, Object value) {
         logger.debug("Put value {0} to {1}.", value, key);
 
         getIntent().step(MongoStep.PUT, key, value);
@@ -98,7 +110,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
         return this;
     }
 
-    public Entity putAll(Map<String, Object> params) {
+    public MongoEntity putAll(Map<String, Object> params) {
         if (null == params || params.isEmpty())
             return this;
 
@@ -159,6 +171,10 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
         };
     }
 
+    public Fields create() {
+        return create((Serializable)null);
+    }
+
     /**
      * This method is only for multi-column unique index, and using Mongo
      * default primary key value.
@@ -169,300 +185,282 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
         return create();
     }
 
-    public Fields create(Serializable... keys) {
-        try {
-            validateState();
+    public Fields create(Serializable key) {
+        validateState();
 
-            // generate key
-            Object key = null;
-            if (keys != null && keys.length > 0) {
-                key = keys[0];
-            }
+        if (logger.isDebug())
+            logger.debug(
+                    "Creating entity, Database is {0}, Collection is {1}, key is {2}.",
+                    getSchema(), getName(), key != null?key:"");
+
+        try(IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if(step.step() == MongoStep.PUT && step.getPurpose().startsWith("$"))
+                logger.warn("Create operation don`t use {0} ...", step.getPurpose());
+
+            if(step.step() != MongoStep.PUT && step.step() != MongoStep.OPTION)
+                return true;
+            return false;
+        })){
+            Document doc = intents.genericFields();
+
+            if (key != null)
+                doc.append("_id", key);
+
+            //process options
+            if (!intents.options().isEmpty())
+                prepareOptions(intents.options());
+
+            InsertOneResult rlt = prepareCollection(intents.options()).insertOne(doc);
+
+            if (key == null)
+                doc.put("_id", rlt.getInsertedId().asObjectId().getValue());
+
+            MongoFields fields = new MongoFields(genKey(doc.get("_id")), new Document(){{putAll(doc);}});// wrapped new document, because intents will be reset.
 
             if (logger.isDebug())
                 logger.debug(
-                        "Creating entity, Database is {0}, Collection is {1}, key is {2}.",
+                        "Created entity, Database is {0}, Collection is {1}, key is {2}.",
                         getSchema(), getName(), key);
-
-            final BasicDBObject doc = new BasicDBObject();
-            final BasicDBObject options = new BasicDBObject();
-            getIntent().playback(new Tracer() {
-
-                public Tracer trace(Step step) throws AnalyzeBehaviourException {
-                    switch (step.step()) {
-                        case MongoStep.PUT:
-                            if (logger.isDebug())
-                                logger.debug(
-                                        "Analyzing behivor, step is {0}, purpose is {1}, scalar is {2}.",
-                                        step.step(), step.getPurpose(),
-                                        Arrays.toString(step.getScalar()));
-
-                            doc.put(step.getPurpose(),
-                                    step.getScalar() == null ? null : step
-                                            .getScalar()[0]);
-                            break;
-                        case MongoStep.OPTION:
-                            options.append(step.getPurpose(), step.getScalar()[0]);
-                            break;
-                        default:
-                            logger.warn(
-                                    "Step {0} does not apply to activities create, this step will be ignored.",
-                                    step.step());
-                    }
-                    return this;
-                }
-
-            });
-
-            if (key != null)
-                doc.put("_id", key);
-
-            //process options
-            if(!options.isEmpty())
-                prepareOptions(options);
-
-            WriteResult rlt = getCollection().insert(doc,
-                    getCollection().getWriteConcern());
-            if (!StringUtils.isBlank(rlt.getError()))
-                throw new DataAccessException(rlt.getError());
-
-            MongoFields fields = new MongoFields(MongoEntity.this,
-                    MongoEntity.this.getIntent(), doc);
-
-            if(logger.isDebug())
-                logger.debug(
-                    "Created entity, Database is {0}, Collection is {1}, key is {2}.",
-                    getSchema(), getName(), key);
 
             return fields;
         } catch (AnalyzeBehaviourException e) {
-            if(logger.isDebug())
+            if (logger.isDebug())
                 logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
-                    e.getMessage());
+                        e.getMessage());
 
             throw new DataAccessException(e);
-        } finally {
-            getIntent().reset();
         }
     }
 
-    public Fields createOrUpdate(Serializable... keys) {
-        try {
-            validateState();
+    public Fields createOrUpdate() {
+        return createOrUpdate((Serializable)null);
+    }
 
-            // generate key
-            Object key = null;
-            if (keys != null && keys.length > 0) {
-                key = keys[0];
-            }
+    /**
+     *
+     * @param key
+     * @return Return modified result, and contains number of records affected, according to "_MatchedCount", "_ModifiedCount"
+     */
+    public Fields createOrUpdate(Serializable key) {
 
-            if (logger.isDebug())
-                logger.debug(
-                        "Creating or Updating entity, Database is {0}, Collection is {1}, key is {2}.",
-                        getSchema(), getName(), key);
+        validateState();
 
-            final BasicDBObject doc = new BasicDBObject();
-            final BasicDBObject options = new BasicDBObject();
-            getIntent().playback(new Tracer() {
+        // generate key
+        if (key == null) {
+            new ObjectId();
+        }
 
-                public Tracer trace(Step step) throws AnalyzeBehaviourException {
-                    switch (step.step()) {
-                        case MongoStep.PUT:
-                            if (logger.isDebug())
-                                logger.debug(
-                                        "Analyzing behivor, step is {0}, purpose is {1}, scalar is {2}.",
-                                        step.step(), step.getPurpose(),
-                                        Arrays.toString(step.getScalar()));
+        if (logger.isDebug())
+            logger.debug(
+                    "Creating or Updating entity, Database is {0}, Collection is {1}, key is {2}.",
+                    getSchema(), getName(), key);
 
-                            doc.put(step.getPurpose(),
-                                    step.getScalar() == null ? null : step
-                                            .getScalar()[0]);
-                            break;
-                        case MongoStep.OPTION:
-                            options.append(step.getPurpose(), step.getScalar()[0]);
-                            break;
-                        default:
-                            logger.warn(
-                                    "Step {0} does not apply to activities create, this step will be ignored.",
-                                    step.step());
-                    }
-                    return this;
-                }
+        try(IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if(step.step() == MongoStep.PUT && step.getPurpose().startsWith("$"))
+                logger.warn("Create operation don`t use {0} ...", step.getPurpose());
 
-            });
+            if(step.step() != MongoStep.PUT && step.step() != MongoStep.OPTION)
+                return true;
+            return false;
+        })){
+            Document _keys = new Document();
 
-            if (key != null)
-                doc.put("_id", key);
+            _keys.append("_id", key);
 
-            if(!options.isEmpty())
-                prepareOptions(options);
+            if (!intents.options().isEmpty())
+                prepareOptions(intents.options());
 
-            WriteResult rlt = getCollection().save(doc,
-                    getCollection().getWriteConcern());
-            if (!StringUtils.isBlank(rlt.getError()))
-                throw new DataAccessException(rlt.getError());
+            Document doc = intents.genericFields();
 
-            MongoFields fields = new MongoFields(MongoEntity.this,
-                    MongoEntity.this.getIntent(), doc);
+            UpdateResult rlt = prepareCollection(intents.options()).updateOne(_keys, new Document().append("$set", doc), new UpdateOptions().upsert(true));
+
+            doc.put("_id", key);
+
+            MongoFields fields = new MongoFields(this.getKey(), new Document(){{putAll(doc);}});
 
             // cache
             if (null != getCache()) {
-                String cacheKey = getKey().concat("#").concat(
-                        keys[0].toString());
-                if(logger.isDebug())
+                String cacheKey = genKey(doc.get("_id"));
+                if (logger.isDebug())
                     logger.debug("Invalid fields to cache, cache key is {0} ...",
                             cacheKey);
                 getCache().remove(cacheKey);
             }
 
-            if(logger.isDebug())
+            if (logger.isDebug())
                 logger.debug(
-                    "Created or Updated entity, Database is {0}, Collection is {1}, key is {2}.",
-                    getSchema(), getName(), key);
+                        "Created or Updated entity, Database is {0}, Collection is {1}, key is {2}.",
+                        getSchema(), getName(), key);
 
             return fields;
         } catch (AnalyzeBehaviourException e) {
-            if(logger.isDebug())
+            if (logger.isDebug())
                 logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
-                    e.getMessage());
+                        e.getMessage());
 
             throw new DataAccessException(e);
-        } finally {
-            getIntent().reset();
         }
     }
 
     public Fields createOrUpdate(Map<String, Object> keys) {
-        putAll(keys);
+        validateState();
 
-        return createOrUpdate();
+        // generate key
+        Document _key = new Document();
+        if (keys == null || keys.size() == 0) {
+            _key.put("_id", new ObjectId());
+        } else {
+            _key.putAll(keys);
+        }
+
+        if (logger.isDebug())
+            logger.debug(
+                    "Creating or Updating entity, Database is {0}, Collection is {1}, key is {2}.",
+                    getSchema(), getName(), _key.toJson());
+
+        try(IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if(step.step() == MongoStep.PUT && step.getPurpose().startsWith("$")) {
+                logger.warn("Create operation don`t use {0} ...", step.getPurpose());
+                return true;//ignore
+            }
+
+            if(step.step() != MongoStep.PUT && step.step() != MongoStep.OPTION)
+                return true;
+
+            return false;
+        })){
+            if (!intents.options().isEmpty())
+                prepareOptions(intents.options());
+
+            Document doc = intents.genericFields();
+
+            UpdateResult rlt = prepareCollection(intents.options()).updateOne(_key, new Document().append("$set", doc), new UpdateOptions().upsert(true));
+
+            doc.putAll(_key);
+
+            String cacheKey = getKey();
+
+            for(String i : _key.keySet()){
+                cacheKey = cacheKey.concat("#").concat(i).concat(":").concat(_key.get(i).toString());
+            }
+
+            MongoFields fields = new MongoFields(cacheKey, new Document(){{putAll(doc);}});
+
+            // cache
+            if (null != getCache()) {
+                if (logger.isDebug())
+                    logger.debug("Invalid fields to cache, cache key is {0} ...",
+                            cacheKey);
+                getCache().remove(cacheKey);
+            }
+
+            if (logger.isDebug())
+                logger.debug(
+                        "Created or Updated entity, Database is {0}, Collection is {1}, key is {2}.",
+                        getSchema(), getName(), _key.toJson());
+
+            return fields;
+        } catch (AnalyzeBehaviourException e) {
+            if (logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+                        e.getMessage());
+
+            throw new DataAccessException(e);
+        }
     }
 
-    public Entity projection(String... projection) {
+    public MongoEntity projection(String... projection) {
         getIntent().step(MongoStep.PROJECTION, null, (Object[]) projection);
 
         return this;
     }
 
-    public Entity projection(BasicDBObject projections) {
-        getIntent().step(MongoStep.PROJECTION, null, projections);
+    public MongoEntity projection(Document projections) {
+        getIntent().step(MongoStep.PROJECTION, "doc", projections);
 
         return this;
     }
 
-    public Entity select(String... projection) {
+    public MongoEntity select(String... projection) {
         return projection(projection);
     }
 
-    public Fields restore(Serializable... keys) {
-        if(logger.isDebug())
+    public Fields restore(Serializable key) {
+        if (logger.isDebug())
             logger.debug(
-                "Restoring entity, Database is {0}, collection is {1}, key is {2}",
-                getSchema(), getName(), Arrays.toString(keys));
+                    "Restoring entity, Database is {0}, collection is {1}, key is {2}",
+                    getSchema(), getName(), key);
 
-        try {
-            validateState();
 
-            if (keys == null || keys.length == 0)
-                throw new IllegalArgumentException(
-                        "Keys must be contain one element.");
+        if (key == null)
+            throw new IllegalArgumentException(
+                    "Keys must be contain one element.");
 
-            final BasicDBObject projection = new BasicDBObject();
-            final BasicDBObject options = new BasicDBObject();
+        validateState();
 
-            getIntent().playback(new Tracer() {
+        try (IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if(step.step() == MongoStep.PUT) {
+                logger.warn("Restore operation don`t use put, will be ignore ...");
+                return true;//ignore
+            }
+            return false;
+        })) {
+            Document query = new Document();
 
-                public Tracer trace(Step step) throws AnalyzeBehaviourException {
-                    switch (step.step()) {
-                        case MongoStep.PROJECTION:
-                            if(step.getScalar()[0] instanceof BasicDBObject){
-                                projection.putAll((BSONObject)step.getScalar()[0]);
+            String cacheKey = genKey(key);//getKey().concat("#").concat(key.toString());
 
-                                options.put("disable_cache", true);
-                                break;
-                            }
+            query.append("_id", key);
 
-                            for (Object field : step.getScalar()) {
-                                String f = (String) field;
-                                projection.put(f, 1);
-                            }
+            if (!intents.options().isEmpty())
+                prepareOptions(intents.options());
 
-                            break;
-                        case MongoStep.OPTION:
-                            options.append(step.getPurpose(), step.getScalar()[0]);
-                            break;
-                        default:
-                                logger.warn(
-                                    "Step {0} does not apply to activities restore, this step will be ignored.",
-                                    step.step());
-                    }
-
-                    return this;
-                }
-
-            });
-
-            BasicDBObject bdbo = new BasicDBObject();
-            bdbo.put("_id", keys[0]);
-
-            // cache
-            if (null != getCache() && !options.getBoolean("disable_cache", false) && options.getBoolean(Options.CACHEABLE, true)) {
-                String cacheKey = getKey().concat("#").concat(
-                        keys[0].toString());
-
+            MongoCollection<Document> _collection = prepareCollection(intents.options());
+            // use cache
+            if (null != getCache() && intents.options().getBoolean(Options.CACHEABLE, true)) {
                 MongoFields cachedFs = null;
                 if (getCache().isAlive(cacheKey)) {
-                    if(logger.isDebug())
+                    if (logger.isDebug())
                         logger.debug(
-                            "Restoring entity from cache, by cache key is {0} ...",
-                            cacheKey);
+                                "Restoring entity from cache, by cache key is {0} ...",
+                                cacheKey);
 
                     cachedFs = (MongoFields) getCache().restore(cacheKey);
                 } else {
-                    if(!options.isEmpty())
-                        prepareOptions(options);
+                    FindIterable<Document> fi = _collection.find(query);
+                    fi.batchSize(1).limit(1);
 
-                    BasicDBObject dbo = (BasicDBObject) getCollection()
-                            .findOne(bdbo);
-
-                    if (null == dbo)
+                    Document _r = fi.first();
+                    if (_r == null)
                         return null;
 
-                    cachedFs = new MongoFields(this, getIntent(), dbo);
+                    cachedFs = new MongoFields(cacheKey, _r);
                     getCache().cache(cachedFs);
 
-                    if(logger.isDebug())
+                    if (logger.isDebug())
                         logger.debug(
-                            "Restored entity and put to cache, cache key is {0}.",
-                            cachedFs.getKey().toString());
+                                "Restored entity and put to cache, cache key is {0}.",
+                                cachedFs.getKey().toString());
                 }
 
-                return cachedFs.clone().project(projection.keySet());
+                return cachedFs.clone().project(intents.projections().keySet());
             } else {// no cache
-                if(!options.isEmpty())
-                    prepareOptions(options);
-
-                DBObject dbo = getCollection().findOne(bdbo, projection);
-
-                if(logger.isDebug())
-                    logger.debug("Restored entity, key is {0}, target is {1}.",
-                        keys[0].toString(), dbo);
+                Document dbo = _collection.find(query).projection(intents.projections()).first();
 
                 if (null == dbo)
                     return null;
 
-                return new MongoFields(this, getIntent(), (BasicDBObject) dbo);
-            }
-        } catch (NoSuchElementException nsee) {
-            throw new EntityNotFoundException(this.getKey(), keys[0].toString());
-        } catch (AnalyzeBehaviourException e) {
-            if(logger.isDebug())
-                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
-                    e.getMessage());
+                if (logger.isDebug())
+                    logger.debug("Restored entity, key is {0}, target is {1}.",
+                            key.toString(), dbo.toJson());
 
-            throw new RuntimeException(e);
-        } finally {
-            getIntent().reset();
+                return new MongoFields(cacheKey, dbo);
+            }
+        } catch (AnalyzeBehaviourException e) {
+            if (logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+                        e.getMessage());
+
+            throw new DataAccessException(e);
         }
     }
 
@@ -478,7 +476,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
         return expr();
     }
 
-    public Entity filter(Expression expr) {
+    public MongoEntity filter(Expression expr) {
         if (null == expr)
             return this;
 
@@ -487,7 +485,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
         return this;
     }
 
-    public Entity order(String... orderingTerm) {
+    public MongoEntity order(String... orderingTerm) {
         if (null == orderingTerm)
             return this;
 
@@ -496,7 +494,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
         return this;
     }
 
-    public Entity orderDESC(String... orderingTerm) {
+    public MongoEntity orderDESC(String... orderingTerm) {
         if (null == orderingTerm)
             return this;
 
@@ -505,85 +503,150 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
         return this;
     }
 
-    public Entity limit(int count) {
+    public MongoEntity limit(int count) {
         getIntent().step(MongoStep.LIMIT, "limita", count);
 
         return this;
     }
 
-    public Entity limit(int offset, int count) {
+    public MongoEntity limit(int offset, int count) {
         getIntent().step(MongoStep.LIMIT, "limitb", offset, count);
 
         return this;
     }
 
     /**
+     * e.filter(e.expr().equals("_id", id)).exists() Equivalent to e.count(e.expr().equals("_id", id)) == 0
+     *
+     * e.filter(...).exists("field1", "field2"...)
+     *
      * can use key and name of columns. first param is key, others is columns.
      * When you check whether the columns exists, if one of column does not
      * exist, than return false.
      */
-    public boolean exists(Serializable... keys) {
-        if (keys == null || keys.length == 0)
-            throw new IllegalArgumentException("You must specify the key!");
-
-        if(logger.isDebug())
+    public boolean exists(Serializable... fields) {
+        if (logger.isDebug())
             logger.debug(
-                "Existing entity, Database is {0}, Collection is {1}, key is {0}",
-                getSchema(), getName(), keys[0]);
-
-        getIntent().reset();
-
-        // cache
-        if (null != getCache()) {
-            String cacheKey = getKey().concat("#").concat(keys[0].toString());
-
-            if (getCache().isAlive(cacheKey)) {
-                if(logger.isDebug())
-                    logger.debug(
-                        "Restoring entity from cache, by cache key is {0} ...",
-                        cacheKey);
-
-                MongoFields cachedFs = (MongoFields) getCache().restore(
-                        cacheKey);
-
-                if (keys.length < 2)
-                    return null != cachedFs;
-                else {
-                    Set<String> ks = cachedFs.getTarget().keySet();
-                    return ks.containsAll(Arrays.asList(keys));
-                }
-            }
-
-        }
+                    "Existing entity, Database is {0}, Collection is {1}, fields is {0}",
+                    getSchema(), getName(), Arrays.toString(fields));
 
         validateState();
 
-        BasicDBObject query = new BasicDBObject();
-        query.put("_id", keys[0]);
+        try (IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if (step.step() == MongoStep.PUT){
+                logger.warn("Exists operation don`t use put, the put action will be ignored ...", step.getPurpose());
+                return true;//ignore
+            }
 
-        for (int i = 1; i < keys.length; i++) {
-            query.append((String) keys[i],
-                    new BasicDBObject().append("$exists", true));
+            return false;
+        })) {
+            MongoExpressionFactory exprFactory = intents.exprFactory();
+            //exprFactory.addExpression(new MongoExpressionBuilder().)
+
+            BasicDBObject query = intents.exprFactory().toQuery();
+
+            for (int i = 0; i < fields.length; i++) {
+                query.append(fields[i].toString(),
+                        new BasicDBObject().append("$exists", true));
+            }
+
+            return prepareCollection(intents.options()).countDocuments(query) > 0;
+        } catch (AnalyzeBehaviourException e) {
+            if (logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+                        e.getMessage());
+
+            throw new DataAccessException(e);
         }
-
-        return getCollection().count(query) > 0;
     }
 
     public Fields first() {
-        List<Fields> rlt = list(0, 1);
-
-        if (rlt == null || rlt.isEmpty())
-            return null;
-
-        return rlt.get(0);
+        return getOne(false);
     }
 
     public Fields last() {
-        long c = opt(Options.RETAIN, true).count().longValue();
+        return getOne(true);
+    }
 
-        logger.debug("Lasting entity, total of {0} entities.", c);
+    private Fields getOne(boolean last) {
+        if (logger.isDebug())
+            logger.debug(
+                    "Getting {0} entity, Database is {1}, Collection is {2}.",
+                    last ? "last" : "first", getSchema(), getName());
 
-        return list((int) c - 1, 1).get(0);
+        validateState();
+
+        try (IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if (step.step() == MongoStep.PUT) {
+                logger.warn("Find operation don`t use put, the put action will be ignored ...");
+                return true;//ignore
+            }
+
+            return false;
+        })) {
+            boolean useCache = null != getCache() && intents.options().getBoolean(Options.CACHEABLE, true);
+
+            BasicDBObject query = intents.exprFactory().toQuery();
+
+            if(!intents.options().isEmpty())
+                prepareOptions(intents.options());
+
+            FindIterable<Document> fi = null;
+            MongoCollection<Document> _collection = prepareCollection(intents.options());
+            if (useCache) {// cache
+                fi = _collection.find(query).projection(new Document().append("_id", 1));
+            } else {// no cache
+                // projection
+                if (intents.projections().isEmpty())
+                    fi = _collection.find(query);
+                else
+                    fi = _collection.find(query).projection(intents.projections());
+            }
+
+            // sort
+            if (!intents.sorter().isEmpty())
+                fi.sort(intents.sorter());
+
+            Document dbo = null;
+            if (last) {
+                long c = _collection.countDocuments(query);
+                fi.skip((int) c - 1).limit(1);
+            }
+            dbo = fi.first();
+
+            if (null == dbo)
+                return null;
+
+            MongoFields ele = null;
+            Object key = dbo.get("_id");
+            String cacheKey = genKey(key);
+            if (useCache) {
+                System.out.println("cache key:"+cacheKey+", "+getCache().isAlive(cacheKey));
+                if (getCache().isAlive(cacheKey)) {// load from cache
+                    MongoFields mf = (MongoFields) getCache().restore(
+                            cacheKey);
+                    if (null != mf) ele = mf.clone();// pooling
+                }
+
+                if (null != ele && !intents.projections().isEmpty())
+                    ele.project(intents.projections().keySet());
+
+                if (null == ele) {
+                    ele = new MongoFields(cacheKey);
+                    loadForMissedCacheHits(key, ele, intents.projections().keySet(), intents.options());
+                }
+            } else {
+                ele = new MongoFields(cacheKey, dbo);
+            }
+
+            return ele;
+        } catch (AnalyzeBehaviourException e) {
+            if (logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+                        e.getMessage());
+
+            throw new DataAccessException(e);
+        }
     }
 
     public List<Fields> list() {
@@ -595,117 +658,115 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     }
 
     public List<Fields> list(int offset, int count) {
-        if(logger.isDebug())
+        if (logger.isDebug())
             logger.debug(
-                "Listing entities, Database is {0}, Collection is {1}, offset is {2}, count is {3}.",
-                getSchema(), getName(), offset, count);
+                    "Listing entities, Database is {0}, Collection is {1}, offset is {2}, count is {3}.",
+                    getSchema(), getName(), offset, count);
         List<Fields> rlt = new ArrayList<Fields>();
 
-        BasicDBObject options = new BasicDBObject();
-        DBCursor cursor = null;
+        validateState();
 
-        try {
-            validateState();
+        try (IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if (step.step() == MongoStep.PUT) {
+                logger.warn("The operation don`t use put, it will be ignored ...");
+                return true;//ignore
+            }
 
-            MongoExpressionFactory expFactory = new MongoExpressionFactory.Impl();
-            BasicDBObject projection = new BasicDBObject();
-            Limiter limiter = new Limiter.Default();
-            BasicDBObject sorter = new BasicDBObject();
+            return false;
+        })) {
+            boolean useCache = null != getCache() && intents.options().getBoolean(Options.CACHEABLE, true);
 
-            IntentParser.parse(getIntent(), expFactory, null, projection,
-                    limiter, sorter, options);
+            BasicDBObject query = intents.exprFactory().toQuery();
 
-            boolean useCache = null != getCache() && !options.getBoolean("disable_cache", false) && options.getBoolean(Options.CACHEABLE, true);
+            if (!intents.options().isEmpty())
+                prepareOptions(intents.options());
 
-            if(!options.isEmpty())
-                prepareOptions(options);
+            MongoCollection<Document> _collection = prepareCollection(intents.options());
 
+            FindIterable<Document> fi = null;
             if (useCache) {// cache
-                cursor = getCollection().find(expFactory.toQuery(),
-                        new BasicDBObject().append("_id", 1));
+                fi = _collection.find(query).projection(new BasicDBObject().append("_id", 1));
             } else {// no cache
                 // projection
-                if (projection.isEmpty())
-                    cursor = getCollection().find(expFactory.toQuery());
+                if (intents.projections().isEmpty())
+                    fi = _collection.find(query);
                 else
-                    cursor = getCollection().find(expFactory.toQuery(),
-                            projection);
+                    fi = _collection.find(query).projection(intents.projections());
             }
 
             // sort
-            if (!sorter.isEmpty())
-                cursor.sort(sorter);
+            if (!intents.sorter().isEmpty())
+                fi.sort(intents.sorter());
 
+            Limiter limiter = intents.limiter();
             if (offset > 0)
                 limiter.offset(offset);
 
             if (count > 0)
                 limiter.count(count);
 
-            if (limiter.offset() > 0)
-                cursor.skip(limiter.offset());
-            if (limiter.count() > 0)
-                cursor.limit(limiter.count());
+            if (limiter.isLimit()) {
+                fi.skip(limiter.offset());
+                fi.limit(limiter.count());
+                fi.batchSize(Math.min(limiter.count(), intents.options().getInteger(Options.BATCH_SIZE)));
+            }
 
             if (useCache) {
                 Map<Object, MongoFields> missedCacheHits = new HashMap<Object, MongoFields>();
 
-                while (cursor.hasNext()) {
-                    BasicDBObject dbo = (BasicDBObject) cursor.next();
-                    Object key = dbo.get("_id");
-                    String cacheKey = getKey().concat("#").concat(
-                            key.toString());
+                try(MongoCursor<Document> cursor = fi.iterator()) {
+                    while (cursor.hasNext()) {
+                        Document dbo = cursor.next();
+                        Object key = dbo.get("_id");
+                        String cacheKey = genKey(key);
 
-                    MongoFields ele = null;
-                    if (getCache().isAlive(cacheKey)) {// load from cache
-                        MongoFields mf = (MongoFields) getCache().restore(
-                                cacheKey);
-                        if(null != mf) ele = mf.clone();// pooling
+                        MongoFields ele = null;
+                        if (getCache().isAlive(cacheKey)) {// load from cache
+                            MongoFields mf = (MongoFields) getCache().restore(
+                                    cacheKey);
+                            if (null != mf) ele = mf.clone();
+                        }
+
+                        if (null != ele && !intents.projections().isEmpty())
+                            ele.project(intents.projections().keySet());
+
+                        if (null == ele) {
+                            ele = new MongoFields(cacheKey);
+                            missedCacheHits.put(key, ele);
+                        }
+
+                        rlt.add(ele);
                     }
 
-                    if(null != ele && !projection.isEmpty())
-                        ele.project(projection.keySet());
-
-                    if(null == ele){
-                        ele = new MongoFields(this, getIntent());
-                        missedCacheHits.put(key, ele);
+                    // load missed cache hits.
+                    if (!missedCacheHits.isEmpty()) {
+                        loadForMissedCacheHits(missedCacheHits, intents.projections().keySet(), intents.options());
+                        missedCacheHits.clear();
                     }
 
-                    rlt.add(ele);
+                    if (logger.isDebug())
+                        logger.debug("Listed entities hit cache ...");
                 }
-
-                // load missed cache hits.
-                if (!missedCacheHits.isEmpty()) {
-                    loadForMissedCacheHits(missedCacheHits, projection.keySet());
-                    missedCacheHits.clear();
-                }
-
-                if(logger.isDebug())
-                    logger.debug("Listed entities hit cache ...");
             } else {
-                while (cursor.hasNext()) {
-                    BasicDBObject dbo = (BasicDBObject) cursor.next();
+                try(MongoCursor<Document> cursor = fi.iterator()) {
+                    while (cursor.hasNext()) {
+                        Document dbo = (Document) cursor.next();
 
-                    rlt.add(new MongoFields(this, getIntent(), dbo));
+                        rlt.add(new MongoFields(genKey(dbo.get("_id")), dbo));
+                    }
+
+                    if (logger.isDebug())
+                        logger.debug("Listed entities ...");
                 }
-
-                if(logger.isDebug())
-                    logger.debug("Listed entities ...");
             }
 
             return rlt;
-        } catch (AnalyzeBehaviourException abe) {
-            if(logger.isDebug())
-                logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
-                    abe.getMessage());
+        } catch (AnalyzeBehaviourException e) {
+            if (logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+                        e.getMessage());
 
-            throw new RuntimeException(abe);
-        } finally {
-            if (!options.getBoolean(Options.RETAIN))
-                getIntent().reset();
-
-            if (cursor != null)
-                cursor.close();
+            throw new DataAccessException(e);
         }
     }
 
@@ -727,97 +788,228 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
         return first();
     }
 
-    /**
-     * Finds the first document in the query and updates it.
-     * @see com.mongodb.DBCollection#findAndModify(com.mongodb.DBObject, com.mongodb.DBObject, com.mongodb.DBObject, boolean, com.mongodb.DBObject, boolean, boolean)
-     * @param expr Expression
-     * @return Fields
-     */
-    public Fields findAndUpdate(Expression expr) {
-        if(logger.isDebug())
+    public Fields findOneAndDelete(Expression filter) {
+        if (logger.isDebug())
             logger.debug(
-                "Finding and updating entity, Database is {0}, Collection is {1} ...",
-                getSchema(), getName());
+                    "Finding and remove entity, Database is {0}, Collection is {1} ...",
+                    getSchema(), getName());
 
-        BasicDBObject options = new BasicDBObject();
-        try {
-            validateState();
+        validateState();
 
-            final BasicDBObject fields = new BasicDBObject();
+        try (IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if (Arrays.asList(MongoStep.PUT, MongoStep.LIMIT).indexOf(step.step()) != -1) {
+                logger.warn("The operation don`t use {0}, it will be ignored ...", step.getPurpose());
+                return true;//ignore
+            }
 
-            MongoExpressionFactory expFactory = new MongoExpressionFactory.Impl();
-            BasicDBObject projection = new BasicDBObject();
-            Limiter limiter = new Limiter.Default();
-            BasicDBObject sorter = new BasicDBObject();
+            return false;
+        })) {
+            intents.exprFactory().addExpression((MongoExpression)filter);// TODO add generic support!!!
+            BasicDBObject query = intents.exprFactory().toQuery();
 
-            IntentParser.parse(getIntent(), expFactory, fields, projection,
-                    limiter, sorter, options);
-
-            BasicDBObject query = expFactory.parse((MongoExpression) expr);
-
-            if(logger.isDebug())
+            if (logger.isDebug())
                 logger.debug(
-                    "Finding and updating entity, Database is {0}, Collection is {1}, expression is {2}, "
-                            + "Projections is {3}, Update is {4}, Sorter is {5}, Options is {6} ...",
-                    getSchema(), getName(), query.toString(), projection.toString(),
-                        fields.toString(), sorter.toString(), JSON.serialize(options));
+                        "Finding and removing entity, Database is {0}, Collection is {1}, expression is {2}, "
+                                + "projections is {3}, options is {4} ...",
+                        getSchema(), getName(), query.toJson(), intents.projections().toJson(), intents.options().toJson());
 
-            DBObject rlt = getCollection().findAndModify(query, projection,
-                    sorter, options.getBoolean(Options.FIND_AND_REMOVE, false), fields,
-                    options.getBoolean(Options.RETURN_NEW, false),
-                    options.getBoolean(Options.UPSERT, false));
+            FindOneAndDeleteOptions uo = new FindOneAndDeleteOptions();
+            if(intents.hasProjections())
+                uo.projection(intents.projections());
+            if(intents.hasSorter())
+                uo.sort(intents.sorter());
 
+            Document rlt = prepareCollection(intents.options()).findOneAndDelete(query, uo);
+            if (rlt == null || rlt.keySet().isEmpty())
+                return null;
+
+            // remove cache
+            if (null != getCache()) {
+                invalidateCache(query, intents.options());
+            }
+
+            return new MongoFields(genKey(rlt.get("_id")), rlt).project(intents.projections().keySet());
+        } catch (AnalyzeBehaviourException e) {
+            if (logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+                        e.getMessage());
+
+            throw new DataAccessException(e);
+        }
+    }
+
+    /**
+     * Don't use internal command such as $(inc|set|unset|push|pushAll|addToSet|pop|pull|pullAll|rename|bit) etc.
+     *
+     * @param filter
+     * @return
+     */
+    public Fields findOneAndReplace(Expression filter) {
+        if (logger.isDebug())
+            logger.debug(
+                    "Finding and replace entity, Database is {0}, Collection is {1} ...",
+                    getSchema(), getName());
+
+        validateState();
+
+        try (IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if (Arrays.asList(MongoStep.LIMIT, MongoStep.PROJECTION).indexOf(step.step()) != -1) {
+                logger.warn("The operation don`t use {0}, it will be ignored ...", step.getPurpose());
+                return true;//ignore
+            }
+
+            if(step.step() == MongoStep.PUT && step.getPurpose().matches(MongoEntity.internalCmds)){
+                logger.warn("The operation don`t use {0}, it will be ignored ...", step.getPurpose());
+                return true;//ignore
+            }
+
+            return false;
+        })) {
+            intents.exprFactory().addExpression((MongoExpression)filter);
+            BasicDBObject query = intents.exprFactory().toQuery();
+
+            if (logger.isDebug()) {
+                logger.debug(
+                        "Finding and replacing entity, Database is {0}, Collection is {1}, expression is {2}, "
+                                + "Projections is {3}, Update is {4}, Sorter is {5}, Options is {6} ...",
+                        getSchema(), getName(), query.toJson(), intents.projections().toJson(),
+                        intents.genericFields().toJson(), intents.sorter().toJson(), intents.options().toJson());
+            }
+
+            FindOneAndReplaceOptions uo = new FindOneAndReplaceOptions();
+            if(intents.hasProjections())
+            uo.projection(intents.projections());
+
+            if(intents.hasSorter())
+                uo.sort(intents.sorter());
+
+            uo.upsert(intents.options().getBoolean(Options.UPSERT, false));
+            uo.returnDocument(intents.options().getBoolean(Options.RETURN_NEW, false) ? ReturnDocument.AFTER : ReturnDocument.BEFORE);
+
+            Document rlt = prepareCollection(intents.options()).findOneAndReplace(query, intents.genericFields(), uo);
             if (rlt == null || rlt.keySet().isEmpty())
                 return null;
 
             // alive cache
             if (null != getCache()) {
-                invalidateCache(query);
+                invalidateCache(query, intents.options());
             }
 
-            return new MongoFields(this, getIntent(), (BasicDBObject) rlt).project(projection.keySet());
-        } catch (AnalyzeBehaviourException abe) {
-            if(logger.isDebug())
-                logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
-                    abe.getMessage());
+            return new MongoFields(this.getKey(), rlt).project(intents.projections().keySet());
+        } catch (AnalyzeBehaviourException e) {
+            if (logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+                        e.getMessage());
 
-            throw new RuntimeException(abe);
-        } finally {
-            if (!options.getBoolean(Options.RETAIN, false))
-                getIntent().reset();
+            throw new DataAccessException(e);
         }
     }
 
-    private void loadForMissedCacheHits(Map<Object, MongoFields> missed,
-                                        Set<String> proj) {
-        Set<Object> ids = missed.keySet();
+    /**
+     * Finds the first document in the query and updates it.
+     *
+     * @param filter Expression
+     * @return Fields
+     * @see com.mongodb.client.MongoCollection#findOneAndUpdate
+     */
+    @Override
+    public Fields findOneAndUpdate(Expression filter) {
         if (logger.isDebug())
-            logger.debug("Loading data for missed cache hits, _id is {0}.",
+            logger.debug(
+                    "Finding and updating entity, Database is {0}, Collection is {1} ...",
+                    getSchema(), getName());
+
+        validateState();
+
+        try (IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if (Arrays.asList(MongoStep.LIMIT, MongoStep.PROJECTION).indexOf(step.step()) != -1) {
+                logger.warn("The operation don`t use {0}, it will be ignored ...", step.getPurpose());
+                return true;//ignore
+            }
+
+            return false;
+        })) {
+            intents.exprFactory().addExpression((MongoExpression)filter);
+            BasicDBObject query = intents.exprFactory().toQuery();
+
+            if (logger.isDebug()) {
+                Document fs = new Document(intents.genericFields());
+                fs.putAll(intents.operationFields());
+                logger.debug(
+                        "Finding one and update entity, Database is {0}, Collection is {1}, expression is {2}, "
+                                + "Projections is {3}, Update is {4}, Sorter is {5}, Options is {6} ...",
+                        getSchema(), getName(), query.toJson(), intents.projections().toJson(),
+                        fs.toJson(), intents.sorter().toJson(), intents.options().toJson());
+            }
+
+            FindOneAndUpdateOptions uo = new FindOneAndUpdateOptions();
+            if(intents.hasProjections())
+                uo.projection(intents.projections());
+
+            if(intents.hasSorter())
+                uo.sort(intents.sorter());
+
+            uo.upsert(intents.options().getBoolean(Options.UPSERT, false));
+            uo.returnDocument(intents.options().getBoolean(Options.RETURN_NEW, false) ? ReturnDocument.AFTER : ReturnDocument.BEFORE);
+
+            Document rlt = prepareCollection(intents.options()).findOneAndUpdate(query, new Document(){{
+                putAll(intents.operationFields());
+                if(intents.hasGenericFields())//if empty don't add $set
+                    append("$set", intents.genericFields());
+            }}, uo);
+            if (rlt == null || rlt.keySet().isEmpty())
+                return null;
+
+            // alive cache
+            if (null != getCache()) {
+                invalidateCache(query, intents.options());
+            }
+
+            return new MongoFields(this.getKey(), rlt).project(intents.projections().keySet());
+        } catch (AnalyzeBehaviourException e) {
+            if (logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+                        e.getMessage());
+
+            throw new DataAccessException(e);
+        }
+    }
+
+    private void loadForMissedCacheHits(Object key, MongoFields fs, Set<String> proj, Document options) {
+        Map<Object, MongoFields> missed = new HashMap<>();
+        missed.put(key, fs);
+
+        loadForMissedCacheHits(missed, proj, options);
+    }
+
+    private void loadForMissedCacheHits(Map<Object, MongoFields> missed,
+                                        Set<String> proj, Document options) {
+        Set<Object> ids = missed.keySet();
+
+        if (logger.isDebug())
+            logger.debug("Loading data for missed cache hits, keys is {0}.",
                     Arrays.toString(ids.toArray()));
 
-        BasicDBObject query = new BasicDBObject();
-        query.append("_id", new BasicDBObject().append("$in", ids.toArray()));
+        Document query = new Document();
+        query.append("_id", new Document().append("$in", Arrays.asList(ids.toArray())));
 
-        DBCursor cursor = null;
-        try {
-            cursor = getCollection().find(query);
+        FindIterable<Document> fi = prepareCollection(options).find(query).batchSize(ids.size());
+        try(MongoCursor<Document> cursor = fi.iterator()){
             while (cursor.hasNext()) {
-                BasicDBObject dbo = (BasicDBObject) cursor.next();
+                Document dbo = cursor.next();
 
                 Object id = dbo.get("_id");
 
-                if(logger.isDebug())
+                if (logger.isDebug())
                     logger.debug("Loaded data for missed cache hits, _id is {0}.",
-                        id.toString());
+                            id.toString());
 
                 MongoFields mf = missed.get(id).putTarget(dbo);
+
                 getCache().cache(mf.clone());
                 if (!proj.isEmpty())
                     mf.project(proj);
             }
-        } finally {
-            if (cursor != null)
-                cursor.close();
         }
     }
 
@@ -829,73 +1021,77 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
      * @param projection will be ignored in mongodb.
      */
     public Number count(String projection) {
-        if(logger.isDebug())
+        if (logger.isDebug())
             logger.debug(
-                "Listing entities, Database is {0}, Collection is {1}, offset is {2}, count is {3}.",
-                getSchema(), getName(), 0, 1);
-        BasicDBObject options = new BasicDBObject();
+                    "Listing entities, Database is {0}, Collection is {1}, Projection is {2}.",
+                    getSchema(), getName(), projection);
 
-        try {
+
+        try (IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if (Arrays.asList(MongoStep.PUT, MongoStep.LIMIT, MongoStep.PROJECTION).indexOf(step.step()) != -1) {
+                logger.warn("The operation don`t use {0}, it will be ignored ...", step.getPurpose());
+                return true;//ignore
+            }
+
+            return false;
+        })) {
             validateState();
 
-            MongoExpressionFactory expFactory = new MongoExpressionFactory.Impl();
 
-            IntentParser.parse(getIntent(), expFactory, null, null, null, null,
-                    options);
-
-            BasicDBObject query = expFactory.toQuery();
-            if (query == null || query.isEmpty())
-                return getCollection().count();
+            MongoCollection<Document> _collection = prepareCollection(intents.options());
+            if (!intents.hasQuery())
+                return _collection.countDocuments();
             else
-                return getCollection().count(query);
-        } catch (AnalyzeBehaviourException abe) {
-            if(logger.isDebug())
-                logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
-                    abe.getMessage());
+                return _collection.countDocuments(intents.exprFactory().toQuery());
+        } catch (AnalyzeBehaviourException e) {
+            if (logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+                        e.getMessage());
 
-            throw new RuntimeException(abe);
-        } finally {
-            if (!options.getBoolean(Options.RETAIN))
-                getIntent().reset();
+            throw new DataAccessException(e);
         }
     }
 
+    /**
+     * the method don't support sort.
+     *
+     * @param projection
+     * @return
+     */
     public List<Fields> distinct(String projection) {
-        if(logger.isDebug())
+        if (logger.isDebug())
             logger.debug(
-                "Distincting entities, Database is {0}, Collection is {1}, column is {2} ...",
-                getSchema(), getName(), projection);
+                    "Distinguishing entities, Database is {0}, Collection is {1}, column is {2} ...",
+                    getSchema(), getName(), projection);
         List<Fields> rlt = new ArrayList<Fields>();
-        BasicDBObject options = new BasicDBObject();
 
-        try {
+        try (IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if (Arrays.asList(MongoStep.PUT, MongoStep.COUNT).indexOf(step.step()) != -1) {
+                logger.warn("The operation don`t use {0}, it will be ignored ...", step.getPurpose());
+                return true;//ignore
+            }
+
+            return false;
+        })) {
             validateState();
 
-            MongoExpressionFactory expFactory = new MongoExpressionFactory.Impl();
+            DistinctIterable<String> r = prepareCollection(intents.options()).distinct(projection, intents.exprFactory().toQuery(), String.class);
+            r.batchSize(intents.limiter().count());
 
-            IntentParser.parse(getIntent(), expFactory, null, null, null, null,
-                    options);
-
-            BasicDBObject query = expFactory.toQuery();
-
-            List r = getCollection().distinct(projection, query);
-            for (Object o : r) {
-                BasicDBObject dbo = new BasicDBObject();
-                dbo.put(projection, o);
-                rlt.add(new MongoFields(this, getIntent(), projection, o));
+            try (MongoCursor<String> cursor = r.iterator()) {
+                while (cursor.hasNext()) {
+                    rlt.add(new MongoFields(genKey(null), new Document().append(projection, cursor.next())));
+                }
             }
-        } catch (AnalyzeBehaviourException abe) {
-            if(logger.isDebug())
-                logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
-                    abe.getMessage());
 
-            throw new RuntimeException(abe);
-        } finally {
-            if (!options.getBoolean(Options.RETAIN))
-                getIntent().reset();
+            return rlt;
+        } catch (AnalyzeBehaviourException e) {
+            if (logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+                        e.getMessage());
+
+            throw new DataAccessException(e);
         }
-
-        return rlt;
     }
 
     public List<Fields> distinct(String projection, Expression exp) {
@@ -905,31 +1101,31 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     }
 
     /**
-     * @deprecated UnsupportedOperation
      * @param target target
+     * @deprecated UnsupportedOperation
      */
-    public Entity join(Entity target) {
+    public MongoEntity join(Entity target) {
         throw new UnsupportedOperationException("Unsupported operation <join>.");
     }
 
     /**
-     * @deprecated UnsupportedOperation
      * @param target target
-     * @param type join type
-     * @param on on expr
+     * @param type   join type
+     * @param on     on expr
+     * @deprecated UnsupportedOperation
      */
-    public Entity joinOn(Entity target, Joint type, String on) {
+    public MongoEntity joinOn(Entity target, Joint type, String on) {
         throw new UnsupportedOperationException(
                 "Unsupported operation <joinOn>.");
     }
 
     /**
-     * @deprecated UnsupportedOperation
      * @param target target entity
-     * @param type join type
-     * @param using using fields
+     * @param type   join type
+     * @param using  using fields
+     * @deprecated UnsupportedOperation
      */
-    public Entity joinUsing(Entity target, Joint type, String... using) {
+    public MongoEntity joinUsing(Entity target, Joint type, String... using) {
         throw new UnsupportedOperationException(
                 "Unsupported operation <joinUsing>.");
     }
@@ -937,14 +1133,14 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * @deprecated UnsupportedOperation
      */
-    public Entity join(String table) {
+    public MongoEntity join(String table) {
         throw new UnsupportedOperationException("Unsupported operation <join>.");
     }
 
     /**
      * @deprecated UnsupportedOperation
      */
-    public Entity joinOn(String table, Joint type, String on) {
+    public MongoEntity joinOn(String table, Joint type, String on) {
         throw new UnsupportedOperationException(
                 "Unsupported operation <joinOn>.");
     }
@@ -952,7 +1148,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * @deprecated UnsupportedOperation
      */
-    public Entity joinUsing(String table, Joint type, String... using) {
+    public MongoEntity joinUsing(String table, Joint type, String... using) {
         throw new UnsupportedOperationException(
                 "Unsupported operation <joinUsing>.");
     }
@@ -960,7 +1156,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * @deprecated UnsupportedOperation
      */
-    public Entity group(String... on) {
+    public MongoEntity group(String... on) {
         throw new UnsupportedOperationException(
                 "Unsupported operation <group>.");
     }
@@ -968,7 +1164,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * @deprecated UnsupportedOperation
      */
-    public Entity having(String selection, Object... args) {
+    public MongoEntity having(String selection, Object... args) {
         throw new UnsupportedOperationException(
                 "Unsupported operation <having>.");
     }
@@ -976,7 +1172,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * @deprecated UnsupportedOperation
      */
-    public Entity union(Entity target) {
+    public MongoEntity union(Entity target) {
         throw new UnsupportedOperationException(
                 "Unsupported operation <union>.");
     }
@@ -984,7 +1180,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * @deprecated UnsupportedOperation
      */
-    public Entity union(Entity target, String alias) {
+    public MongoEntity union(Entity target, String alias) {
         throw new UnsupportedOperationException(
                 "Unsupported operation <union>.");
     }
@@ -992,7 +1188,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * @deprecated UnsupportedOperation
      */
-    public Entity unionAll(Entity target) {
+    public MongoEntity unionAll(Entity target) {
         throw new UnsupportedOperationException(
                 "Unsupported operation <unionAll>.");
     }
@@ -1000,7 +1196,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * @deprecated UnsupportedOperation
      */
-    public Entity unionAll(Entity target, String alias) {
+    public MongoEntity unionAll(Entity target, String alias) {
         throw new UnsupportedOperationException(
                 "Unsupported operation <joinUsing>.");
     }
@@ -1008,7 +1204,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * @deprecated UnsupportedOperation
      */
-    public Entity except(Entity target) {
+    public MongoEntity except(Entity target) {
         throw new UnsupportedOperationException(
                 "Unsupported operation <except>.");
     }
@@ -1016,7 +1212,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * @deprecated UnsupportedOperation
      */
-    public Entity except(Entity target, String alias) {
+    public MongoEntity except(Entity target, String alias) {
         throw new UnsupportedOperationException(
                 "Unsupported operation <except>.");
     }
@@ -1024,7 +1220,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * @deprecated UnsupportedOperation
      */
-    public Entity exceptAll(Entity target) {
+    public MongoEntity exceptAll(Entity target) {
         throw new UnsupportedOperationException(
                 "Unsupported operation <exceptAll>.");
     }
@@ -1102,269 +1298,218 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                 "Unsupported operation <concat>.");
     }
 
-    public int update(Serializable... keys) {
-        if(logger.isDebug())
+    public long update() {
+        return update((Serializable)null);
+    }
+
+    public long update(Serializable key) {
+        if (logger.isDebug())
             logger.debug(
-                "Updating entitiy, Database is {0}, Collection is {1}, keys is {2}.",
-                getSchema(), getName(), Arrays.toString(keys));
+                    "Updating entity, Database is {0}, Collection is {1}, specified key is {2}.",
+                    getSchema(), getName(), key);
 
-        try {
-            if (keys == null || keys.length == 0)
-                return 0;
+        if (key == null)
+            return 0;
 
+        try (IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if (Arrays.asList(MongoStep.LIMIT, MongoStep.PROJECTION, MongoStep.DISTINCT, MongoStep.COUNT).indexOf(step.step()) != -1) {
+                logger.warn("The operation don`t use {0}, it will be ignored ...", step.getPurpose());
+                return true;//ignore
+            }
+
+            return false;
+        })) {
             validateState();
 
-            final BasicDBObject fields = new BasicDBObject();
-            final BasicDBObject othersFields = new BasicDBObject();
-            final BasicDBObject options = new BasicDBObject();
+            if(!intents.options().isEmpty())
+                prepareOptions(intents.options());
 
-            getIntent().playback(new Tracer() {
+            UpdateResult rlt = prepareCollection(intents.options()).updateOne(new Document().append("_id", key), new Document(){{
+                putAll(intents.operationFields());
+                if(intents.hasGenericFields())//if empty don't add $set
+                    append("$set", intents.genericFields());
+            }}, new UpdateOptions().upsert(intents.options().getBoolean(Options.UPSERT, false)));
 
-                public Tracer trace(Step step) throws AnalyzeBehaviourException {
-                    switch (step.step()) {
-                        case MongoStep.PUT:
-                            if(logger.isDebug())
-                                logger.debug(
-                                    "Analyzing behivor PUT, step is {0}, purpose is {1}, scalar is {2}.",
-                                    step.step(), step.getPurpose(),
-                                    Arrays.toString(step.getScalar()));
-
-                            if (StringUtils.isBlank(step.getPurpose()))
-                                break;
-
-                            Object val = (step.getScalar() == null || step
-                                    .getScalar().length == 0) ? null : step
-                                    .getScalar()[0];
-
-                            if (step.getPurpose().matches(internalCmds))
-                                othersFields.append(step.getPurpose(), val);
-                            else
-                                fields.append(step.getPurpose(), val);
-
-                            break;
-                        case MongoStep.OPTION:
-                            options.append(step.getPurpose(), step.getScalar()[0]);
-
-                            break;
-                        default:
-                                logger.warn(
-                                    "Step {0} does not apply to activities create, this step will be ignored.",
-                                    step.step());
-                    }
-
-                    return this;
-                }
-
-            });
-
-            BasicDBObject fs = new BasicDBObject();
-            if (!fields.isEmpty())
-                fs.put("$set", fields);
-
-            if (!othersFields.isEmpty())
-                fs.putAll(othersFields.toMap());
-
-            if (fs.isEmpty())
-                return 0;
-
-            WriteResult wr = getCollection().update(
-                    new BasicDBObject().append("_id", keys[0]), fs, options.getBoolean(Options.UPSERT, false),
-                    false, getCollection().getWriteConcern());
-            if (!StringUtils.isBlank(wr.getError()))
-                throw new DataAccessException(wr.getError());
 
             // invalidate cache
             if (null != getCache()) {
-                String cacheKey = getKey().concat("#").concat(
-                        keys[0].toString());
-                getCache().remove(cacheKey);
+                getCache().remove(genKey(key));
 
                 if (logger.isDebug())
                     logger.debug("Invalidated cache key is {0}.",
-                            keys[0].toString());
+                            key.toString());
             }
 
-            return wr.getN();
-        } catch (AnalyzeBehaviourException abe) {
-            if(logger.isDebug())
-                logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
-                    abe.getMessage());
+            return rlt.getModifiedCount();
+        } catch (AnalyzeBehaviourException e) {
+            if (logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+                        e.getMessage());
 
-            throw new RuntimeException(abe);
-        } finally {
-            getIntent().reset();
+            throw new DataAccessException(e);
         }
     }
 
-    public int updateRange(Expression expr) {
-        if(logger.isDebug())
+    public long updateRange(Expression expr) {
+        if (logger.isDebug())
             logger.debug(
-                "Updating entities, Database is {0}, Collection is {1} ...",
-                getSchema(), getName());
+                    "Updating entities, Database is {0}, Collection is {1} ...",
+                    getSchema(), getName());
 
-        try {
-            validateState();
 
-            final BasicDBObject fields = new BasicDBObject();
-            final BasicDBObject othersFields = new BasicDBObject();
-            final BasicDBObject options = new BasicDBObject();
+        validateState();
 
-            getIntent().playback(new Tracer() {
+        try (IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if (Arrays.asList(MongoStep.LIMIT, MongoStep.PROJECTION).indexOf(step.step()) != -1) {
+                logger.warn("The operation don`t use {0}, it will be ignored ...", step.getPurpose());
+                return true;//ignore
+            }
 
-                public Tracer trace(Step step) throws AnalyzeBehaviourException {
-                    switch (step.step()) {
-                        case MongoStep.PUT:
-                            if (StringUtils.isBlank(step.getPurpose()))
-                                break;
+            return false;
+        })) {
+            intents.exprFactory().addExpression((MongoExpression)expr);
 
-                            Object val = (step.getScalar() == null || step
-                                    .getScalar().length == 0) ? null : step
-                                    .getScalar()[0];
+            BasicDBObject query = intents.exprFactory().toQuery();
 
-                            if (step.getPurpose().matches(internalCmds))
-                                othersFields.append(step.getPurpose(), val);
-                            else
-                                fields.append(step.getPurpose(), val);
-
-                            break;
-                        case MongoStep.OPTION:
-                            options.append(step.getPurpose(), step.getScalar()[0]);
-
-                            break;
-                        default:
-                                logger.warn(
-                                    "Step {0} does not apply to activities create, this step will be ignored.",
-                                    step.step());
-                    }
-
-                    return this;
-                }
-
-            });
-
-            final MongoExpressionFactory expFactory = new MongoExpressionFactory.Impl();
-            BasicDBObject query = expFactory.parse((MongoExpression) expr);
-
-            if(logger.isDebug())
+            if (logger.isDebug())
                 logger.debug(
-                    "Updating entities, Database is {0}, Collection is {1}, expression is {2} ...",
-                    getSchema(), getName(), query.toString());
+                        "Updating entities, Database is {0}, Collection is {1}, expression is {2} ...",
+                        getSchema(), getName(), query.toJson());
 
-            BasicDBObject fs = new BasicDBObject();
-            if (!fields.isEmpty())
-                fs.append("$set", fields);
-
-            if (!othersFields.isEmpty())
-                fs.putAll(othersFields.toMap());
-
-            if (fs.isEmpty())
-                return 0;
+            if(!intents.options().isEmpty())
+                prepareOptions(intents.options());
 
             //position move to here, because query is not invalidate when $pull sub document.
             // invalidate cache
             if (null != getCache()) {
-                invalidateCache(query);
+                invalidateCache(query, intents.options());
             }
 
-            WriteResult wr = getCollection().update(query, fs, options.getBoolean(Options.UPSERT, false), true,
-                    getCollection().getWriteConcern());
-            if (!StringUtils.isBlank(wr.getError()))
-                throw new DataAccessException(wr.getError());
+            UpdateResult rlt = prepareCollection(intents.options())
+                    .updateMany(query, new Document(){{
+                        putAll(intents.operationFields());
+                        if(intents.hasGenericFields())//if empty don't add $set
+                            append("$set", intents.genericFields());
+                    }}, new UpdateOptions()
+                            .upsert(intents.options().getBoolean(Options.UPSERT, false)));
 
-            int effected = wr.getN();
+            long effected = rlt.getModifiedCount();
 
-            if(logger.isDebug())
+            if (logger.isDebug())
                 logger.debug(
                         "Updated entities({0}.{1}#expression is {2}), affected {3} ...",
                         getSchema(), getName(), query.toString(), effected);
 
             return effected;
-        } catch (AnalyzeBehaviourException abe) {
-            if(logger.isDebug())
-                logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
-                    abe.getMessage());
+        } catch (AnalyzeBehaviourException e) {
+            if (logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+                        e.getMessage());
 
-            throw new RuntimeException(abe);
-        } finally {
-            getIntent().reset();
+            throw new DataAccessException(e);
         }
     }
 
-    public int delete(Serializable... keys) {
-        if (keys == null || keys.length == 0) {
+    public long delete() {
+        return delete((Serializable)null);
+    }
+
+    public long delete(Serializable key) {
+        if (key == null) {
             logger.warn("System does not know what data you want to update, "
                     + "you must specify the data row identity.");
 
             return 0;
         }
 
-        if(logger.isDebug())
+        if (logger.isDebug())
             logger.debug(
-                "Deleting entitiy, Database is {0}, Collection is {1}, keys is {2}.",
-                getSchema(), getName(), Arrays.toString(keys));
+                    "Deleting entitiy, Database is {0}, Collection is {1}, keys is {2}.",
+                    getSchema(), getName(), key);
 
+
+        validateState();
+
+        final Document options = new Document();
         try {
-            validateState();
+            getIntent().playback(step -> {
+                switch (step.step()) {
+                    case MongoStep.OPTION:
+                        options.append(step.getPurpose(), step.getScalar());
+                        break;
+                    default:
+                        logger.warn(
+                                "Step {0} does not apply to activities delete, this step will be ignored.",
+                                step.getPurpose());
+                        break;
+                }
 
-            WriteResult wr = getCollection().remove(
-                    new BasicDBObject().append("_id", keys[0]),
-                    getCollection().getWriteConcern());
-            if (!StringUtils.isBlank(wr.getError()))
-                throw new DataAccessException(wr.getError());
+                return null;
+            });
+
+            DeleteResult rlt = prepareCollection(options).deleteOne(new BasicDBObject().append("_id", key));
 
             // invalidate cache
             if (null != getCache()) {
-                String cacheKey = getKey().concat("#").concat(
-                        keys[0].toString());
-                getCache().remove(cacheKey);
+                getCache().remove(genKey(key));
 
                 if (logger.isDebug())
                     logger.debug("Invalidated cache key is {0}.",
-                            keys[0].toString());
+                            key.toString());
             }
 
-            return wr.getN();
+            return rlt.getDeletedCount();
+        } catch (AnalyzeBehaviourException e) {
+            if (logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+                        e.getMessage());
+
+            throw new DataAccessException(e);
         } finally {
-            getIntent().reset();
+            if(!options.getBoolean(Options.RETAIN, false))
+                getIntent().reset();
         }
     }
 
-    public int deleteRange(Expression expr) {
-        if(logger.isDebug())
+    public long deleteRange(Expression filter) {
+        if (logger.isDebug())
             logger.debug(
-                "Deleting entities, Database is {0}, Collection is {1} ...",
-                getSchema(), getName());
+                    "Deleting entities, Database is {0}, Collection is {1} ...",
+                    getSchema(), getName());
 
-        try {
-            validateState();
 
-            final MongoExpressionFactory expFactory = new MongoExpressionFactory.Impl();
-            BasicDBObject query = expFactory.parse((MongoExpression) expr);
+        validateState();
 
-            if(logger.isDebug())
+        try (IntentParser.ParserResult intents = IntentParser.parse(this, (step) -> {
+            if (Arrays.asList(MongoStep.PUT, MongoStep.LIMIT, MongoStep.PROJECTION).indexOf(step.step()) != -1) {
+                logger.warn("The operation don`t use {0}, it will be ignored ...", step.getPurpose());
+                return true;
+            }
+
+            return false;
+        })) {
+            intents.exprFactory().addExpression((MongoExpression)filter);
+            BasicDBObject query = intents.exprFactory().toQuery();
+
+            if (logger.isDebug())
                 logger.debug(
-                    "Deleting entities, Database is {0}, Collection is {1}, expression is {2} ...",
-                    getSchema(), getName(), query.toString());
+                        "Deleting entities, Database is {0}, Collection is {1}, expression is {2} ...",
+                        getSchema(), getName(), query.toString());
 
             // invalidate cache
             if (null != getCache()) {
-                invalidateCache(query);
+                invalidateCache(query, intents.options());
             }
 
-            WriteResult wr = getCollection().remove(query,
-                    getCollection().getWriteConcern());
-            if (!StringUtils.isBlank(wr.getError()))
-                throw new DataAccessException(wr.getError());
+            DeleteResult rlt = prepareCollection(intents.options()).deleteMany(query);
 
-            return wr.getN();
-        } catch (AnalyzeBehaviourException abe) {
-            if(logger.isDebug())
-                logger.debug(abe, "Analyzing behaviour failure, cause by: {0}.",
-                    abe.getMessage());
+            return rlt.getDeletedCount();
+        } catch (AnalyzeBehaviourException e) {
+            if (logger.isDebug())
+                logger.debug(e, "Analyzing behaviour failure, cause by: {0}.",
+                        e.getMessage());
 
-            throw new RuntimeException(abe);
-        } finally {
-            getIntent().reset();
+            throw new DataAccessException(e);
         }
     }
 
@@ -1435,9 +1580,9 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     /**
      * @see org.canedata.provider.mongodb.entity.Options
      * @see org.canedata.entity.Entity#opt(java.lang.String,
-     *      java.lang.Object[])
+     * java.lang.Object[])
      */
-    public Entity opt(String key, Object... values) {
+    public MongoEntity opt(String key, Object... values) {
         getIntent().step(MongoStep.OPTION, key, values);
 
         return this;
@@ -1471,15 +1616,29 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                     "Entity have been closed, can use the revive method to reactivate it.");
     }
 
-    private void invalidateCache(BasicDBObject query) {
-        DBCursor cursor = null;
+    /**
+     * Wrapped to Collection aggregate.
+     * @see com.mongodb.client.MongoCollection#aggregate(List)
+     * @param pipeline
+     * @return
+     */
+    public List<Fields> aggregate(List<? extends Bson> pipeline) {
+        return execute(new Aggregate(), pipeline, -1);
+    }
 
-        try {
-            cursor = getCollection().find(query,
-                    new BasicDBObject().append("_id", 1));
+    public List<Fields> aggregate(List<? extends Bson> pipeline, int limit) {
+        return execute(new Aggregate(), pipeline, limit);
+    }
 
-            logger.debug("Invalidate cache({0}), for {1} ...", query.toString(), cursor.count());
-            while (cursor.hasNext()) {
+    private void invalidateCache(BasicDBObject query, Document options) {
+        MongoCollection<Document> _collection = prepareCollection(options);
+        long hit_count = _collection.countDocuments(query);
+
+        FindIterable<Document> rlt = _collection.find(query);
+        rlt.projection(new BasicDBObject().append("_id", 1)).batchSize(BigInteger.valueOf(hit_count).intValue());
+        try (MongoCursor<Document> cursor = rlt.iterator()) {
+            logger.debug("Invalidate cache({0}), for {1} ...", query.toString(), hit_count);
+            while(cursor.hasNext()) {
                 String key = cursor.next().get("_id").toString();
                 String cacheKey = getKey().concat("#").concat(key);
                 getCache().remove(cacheKey);
@@ -1487,41 +1646,80 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
                 if (logger.isDebug())
                     logger.debug("Invalidated cache key is {0}.", cacheKey);
             }
-        } finally {
-            if (cursor != null)
-                cursor.close();
         }
     }
 
-    private void prepareOptions(BasicDBObject options){
-        for(String o : options.keySet()){
-            if(Options.MONGO_OPTION.equals(o)){
-                getCollection().addOption(options.getInt(o));
-                continue;
-            }
+    private MongoCollection<Document> prepareCollection(Document options) {
+        MongoCollection<Document> _col = getCollection();
 
-            if(Options.RESET_MONGO_OPTIONS.equals(o)){
-                getCollection().resetOptions();
-                continue;
-            }
+        if (options.containsKey(Options.READ_CONCERN)) {
+            ReadConcern readConcern = (ReadConcern) options.get(Options.READ_CONCERN);
+            _col = _col.withReadConcern(readConcern);
+        }
 
+        if (options.containsKey(Options.WRITE_CONCERN)) {
+            WriteConcern writeConcern = (WriteConcern) options.get(Options.WRITE_CONCERN);
+            _col = _col.withWriteConcern(writeConcern);
+        }
+
+        if (options.containsKey(Options.READ_PREFERENCE)) {
+            ReadPreference readPreference = (ReadPreference) options.get(Options.READ_PREFERENCE);
+            _col = _col.withReadPreference(readPreference);
+        }
+
+        Codec [] _cs = null;
+        if (options.containsKey(Options.ADD_CODEC)) {
+            _cs = (Codec[]) options.get(Options.ADD_CODEC);
+        } else {
+            _cs = new Codec[] { new BigIntegerCodec(), new StringsCodec()};
+        }
+
+        CodecRegistry _codec = CodecRegistries.fromRegistries(_col.getCodecRegistry(), CodecRegistries.fromCodecs(_cs));
+        _col = _col.withCodecRegistry(_codec);
+
+        return _col;
+    }
+
+    private void prepareOptions(Document options) {
+        for (String o : options.keySet()) {
+            /* for 2.x driver
             if(Options.READ_PREFERENCE.equals(o)){
                 if(!(options.get(o) instanceof ReadPreference))
                     throw new MalformedParameterizedTypeException();
 
-               getCollection().setReadPreference((ReadPreference)options.get(o));
-
+                getCollection().withReadPreference ((ReadPreference)options.get(o));
                break;
+            }
+
+            if(Options.READ_CONCERN.equals(o)){
+                if(!(options.get(o) instanceof ReadConcern))
+                    throw new MalformedParameterizedTypeException();
+
+                getCollection().withReadConcern((ReadConcern)options.get(o));
+                break;
             }
 
             if(Options.WRITE_CONCERN.equals(o)){
                 if(!(options.get(o) instanceof WriteConcern))
                     throw new MalformedParameterizedTypeException();
 
-                getCollection().setWriteConcern((WriteConcern)options.get(o));
+                getCollection().withWriteConcern((WriteConcern)options.get(o));
                 break;
-            }
+            }*/
         }
+    }
+
+    private String genKey(Object self) {
+        if(getKey() == null) return UUID.randomUUID().toString();
+
+        StringBuffer k = new StringBuffer();
+        k.append(getKey()).append("#");
+        if(self == null)
+            k.append(StringUtils.random(6));
+        else
+            k.append(self.toString());
+
+        return k.toString();
     }
 
 }

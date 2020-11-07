@@ -23,6 +23,7 @@ import static org.junit.Assert.assertTrue;
 import com.mongodb.BasicDBObject;
 import org.canedata.entity.Entity;
 import org.canedata.field.Fields;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -31,6 +32,11 @@ import org.junit.Test;
  * @version 1.00.000 2011-9-2
  */
 public class TestUpdate extends CacheAbilityProvider {
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void byKey() {
 		Entity e = factory.get("user");
@@ -72,7 +78,7 @@ public class TestUpdate extends CacheAbilityProvider {
 		n.put("name", "name1");
 		e.put("$pull", new BasicDBObject("sub", n));
 
-		int rlt = e.updateRange(e.expr().equals("sub.name", "name1"));
+		long rlt = e.updateRange(e.expr().equals("sub.name", "name1"));
 		assertEquals(rlt, 1);
 	}
 }

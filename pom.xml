@@ -6,7 +6,7 @@
 	<artifactId>cane-provider-mongodb</artifactId>
 	<packaging>jar</packaging>
     <name>Mongodb provider</name>
-	<version>0.5.2</version>
+	<version>0.6.beta</version>
 
     <description>
         Cane provider for mongodb.
@@ -41,28 +41,28 @@
             <name>Sonatype Nexus snapshot repository</name>
             <url>https://oss.sonatype.org/content/repositories/snapshots</url>
         </snapshotRepository>
-        <repository>
+        <!--repository>
             <id>maven</id>
             <name>Nexus Release Repository</name>
             <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository-->
+        <repository>
+            <id>dht</id>
+            <name>Nexus Release Repository</name>
+            <url>http://192.168.10.10:8081/nexus/repository/dht/</url>
         </repository>
     </distributionManagement>
 
 	<dependencies>
 		<dependency>
 			<groupId>org.canedata</groupId>
-			<artifactId>cane-api</artifactId>
-			<version>0.5</version>
-		</dependency>
-		<dependency>
-			<groupId>org.canedata</groupId>
 			<artifactId>cane-core</artifactId>
-			<version>0.5.3</version>
+			<version>0.6.beta</version>
 		</dependency>
 		<dependency>
 			<groupId>org.canedata.module</groupId>
 			<artifactId>cane-module-ehcache</artifactId>
-			<version>0.5</version>
+			<version>0.6.beta</version>
             <scope>test</scope>
 		</dependency>
         <dependency>
@@ -70,21 +70,29 @@
             <artifactId>commons-pool</artifactId>
             <version>1.5.6</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/org.mongodb/mongodb-driver-sync -->
         <dependency>
             <groupId>org.mongodb</groupId>
-            <artifactId>mongo-java-driver</artifactId>
-            <version>2.14.3</version>
+            <artifactId>mongodb-driver-sync</artifactId>
+            <version>4.1.0</version>
         </dependency>
-		<dependency>
-			<groupId>org.springframework</groupId>
-			<artifactId>spring</artifactId>
-			<version>2.5.6</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-beans</artifactId>
+            <version>5.2.9.RELEASE</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <version>5.2.9.RELEASE</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
-			<version>4.11</version>
+			<version>4.13</version>
             <scope>test</scope>
 		</dependency>
 	</dependencies>

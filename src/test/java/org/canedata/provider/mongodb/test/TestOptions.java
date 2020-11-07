@@ -17,6 +17,8 @@
 package org.canedata.provider.mongodb.test;
 
 import com.mongodb.*;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
 import org.canedata.entity.Command;
 import org.canedata.entity.Entity;
 import org.canedata.entity.EntityFactory;
@@ -25,6 +27,7 @@ import org.canedata.provider.mongodb.MongoResource;
 import org.canedata.provider.mongodb.entity.MongoEntity;
 import org.canedata.provider.mongodb.entity.Options;
 import org.canedata.resource.Resource;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Method;
@@ -40,11 +43,16 @@ import static junit.framework.Assert.assertTrue;
 public class TestOptions extends AbilityProvider {
     private static final String ENTITY = "user";
 
+    @Before
+    public void setup() {
+        initData();
+    }
+
     @Test
     public void findAndUpdateAndReturnNew() throws Exception {
         Entity e = factory.get(ENTITY);
         try {
-            Fields neu = e.put("age", 18).put("name", "rnew").opt(Options.RETURN_NEW, true).findAndUpdate(e.expr().equals("_id", "id:test:1"));
+            Fields neu = e.put("age", 18).put("name", "rnew").opt(Options.RETURN_NEW, true).findOneAndUpdate(e.expr().equals("_id", "id:test:1"));
 
             assertEquals(neu.getString("_id"), "id:test:1");
             assertEquals(neu.getInt("age"), 18);
@@ -72,128 +80,24 @@ public class TestOptions extends AbilityProvider {
         }
     }
 
-    @Test
-    public void findAndRemove() throws Exception {
-        Entity e = factory.get(ENTITY);
-        String id = "test:findAndRemove";
 
-        try {
-            e.put("name", "findAndRemove").put("age", 19).create(id);
-
-            Fields neu = e.opt(Options.FIND_AND_REMOVE, true).findAndUpdate(e.expr().equals("_id", id));
-
-            assertTrue(!e.exists(id));
-        } finally {
-            if (null != e)
-                e.close();
-        }
-    }
-
-    @Test
-    public void mongoOption() throws Exception {
-        Entity e = factory.get(ENTITY);
-
-        try{
-            try{List<Fields> rlt = e.opt(Options.MONGO_OPTION, -1).list();}catch (Exception e1){}
-            e.execute(new Command() {
-                public String getName() {
-                    return "test";
-                }
-
-                public String describe() {
-                    return "test for mongo option: read preference";
-                }
-
-                public <D> D execute(EntityFactory factory, Resource<?> res, Entity target, Object... args) {
-                    DB db = ((MongoResource)res).take();
-                    try {
-                        Method m = MongoEntity.class.getDeclaredMethod("getCollection");
-                        m.setAccessible(true);
-                        DBCollection dbc = (DBCollection)m.invoke(target);
-                        assertEquals(-1, dbc.getOptions());
-                    } catch (Exception e1) {
-                        throw new RuntimeException(e1);
-                    }
-                    return null;
-                }
-            });
-
-
-        }finally {
-            if(null != e)
-                e.close();
-        }
-    }
-
-    @Test
-    public void readPreference() throws Exception {
+    public void collectionOptions() throws Exception {
         Entity e = factory.get(ENTITY);
         ReadPreference rp = ReadPreference.secondary();
+        WriteConcern wc = WriteConcern.JOURNALED;
+        ReadConcern rc = ReadConcern.LINEARIZABLE;
 
-        try{
-            List<Fields> rlt = e.opt(Options.READ_PREFERENCE, rp).list();
-            Object backed = e.execute(new Command() {
-                public String getName() {
-                    return "test";
-                }
+        BasicDBObject options = new BasicDBObject();
+        options.append(Options.READ_PREFERENCE, rp)
+        .append(Options.READ_CONCERN, rc)
+        .append(Options.WRITE_CONCERN, wc);
 
-                public String describe() {
-                    return "test for mongo option: read preference";
-                }
+        Method m = MongoEntity.class.getDeclaredMethod("prepareCollection", BasicDBObject.class);
+        m.setAccessible(true);
+        MongoCollection dbc = (MongoCollection)m.invoke(e, options);
 
-                public <D> D execute(EntityFactory factory, Resource<?> res, Entity target, Object... args) {
-                    DB db = ((MongoResource)res).take();
-                    try {
-                        Method m = MongoEntity.class.getDeclaredMethod("getCollection");
-                        m.setAccessible(true);
-                        DBCollection dbc = (DBCollection)m.invoke(target);
-                        return (D)dbc.getReadPreference();
-                    } catch (Exception e1) {
-                        throw new RuntimeException(e1);
-                    }
-                }
-            });
-
-            assertEquals(rp, backed);
-        }finally {
-            if(null != e)
-                e.close();
-        }
-    }
-
-    @Test
-    public void writeConcern() throws Exception {
-        Entity e = factory.get(ENTITY);
-        WriteConcern wc = WriteConcern.FSYNC_SAFE;
-
-        try{
-            e.put("age", 18).put("name", "name").opt(Options.WRITE_CONCERN, wc).create();
-            Object backed = e.execute(new Command() {
-                public String getName() {
-                    return "test";
-                }
-
-                public String describe() {
-                    return "test for mongo option: read preference";
-                }
-
-                public <D> D execute(EntityFactory factory, Resource<?> res, Entity target, Object... args) {
-                    DB db = ((MongoResource)res).take();
-                    try {
-                        Method m = MongoEntity.class.getDeclaredMethod("getCollection");
-                        m.setAccessible(true);
-                        DBCollection dbc = (DBCollection)m.invoke(target);
-                        return (D)dbc.getWriteConcern();
-                    } catch (Exception e1) {
-                        throw new RuntimeException(e1);
-                    }
-                }
-            });
-
-            assertEquals(wc, backed);
-        }finally {
-            if(null != e)
-                e.close();
-        }
+        assertEquals(dbc.getReadPreference(), rp);
+        assertEquals(dbc.getReadConcern(), rc);
+        assertEquals(dbc.getWriteConcern(), wc);
     }
 }

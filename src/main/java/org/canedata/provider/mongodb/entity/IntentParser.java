@@ -16,7 +16,7 @@
 
 package org.canedata.provider.mongodb.entity;
 
-import org.bson.BSONObject;
+import org.bson.Document;
 import org.canedata.core.intent.Step;
 import org.canedata.core.intent.Tracer;
 import org.canedata.core.logging.LoggerFactory;
@@ -26,116 +26,223 @@ import org.canedata.exception.AnalyzeBehaviourException;
 import org.canedata.logging.Logger;
 import org.canedata.provider.mongodb.expr.MongoExpression;
 import org.canedata.provider.mongodb.expr.MongoExpressionFactory;
-import org.canedata.provider.mongodb.intent.MongoIntent;
 import org.canedata.provider.mongodb.intent.MongoStep;
 
-import com.mongodb.BasicDBObject;
+import java.io.Closeable;
 
 /**
- * 
  * @author Sun Yat-ton
  * @version 1.00.000 2011-8-9
  */
 public class IntentParser {
-	protected static final Logger logger = LoggerFactory
-			.getLogger(IntentParser.class);
+    protected static final Logger logger = LoggerFactory
+            .getLogger(IntentParser.class);
 
-	public static void parse(MongoIntent intent,
-			final MongoExpressionFactory expFactory,
-			final BasicDBObject fields, final BasicDBObject projection,
-			final Limiter limiter, final BasicDBObject sorter, final BasicDBObject options)
-			throws AnalyzeBehaviourException {
-		options.append(Options.RETAIN, false).append(Options.UPSERT, false);
+    public static interface ParserResult extends Closeable {
+        public Document genericFields();
 
-		final BasicDBObject othersFields = new BasicDBObject();
+        public boolean hasGenericFields();
 
-		intent.playback(new Tracer() {
+        public Document operationFields();
 
-			public Tracer trace(Step step) throws AnalyzeBehaviourException {
-				switch (step.step()) {
-				case MongoStep.FILTER:
-					logger.debug("Putting filter ...");
+        public Document projections();
 
-					if (null != step.getScalar())
-						expFactory.addExpression((MongoExpression) step
-								.getScalar()[0]);
+        public boolean hasProjections();
 
-					break;
-				case MongoStep.PROJECTION:
-					if (null == projection)
-						break;
+        public Limiter limiter();
 
-					if(step.getScalar()[0] instanceof BasicDBObject){
-						projection.putAll((BSONObject)step.getScalar()[0]);
-						options.put("disable_cache", true);
-						break;
-					}
+        public Document sorter();
 
-					for (Object field : step.getScalar()) {
-						String f = (String) field;
+        public boolean hasSorter();
 
-						logger.debug("Projected field {0} ...", f);
+        public Document options();
 
-						projection.append(f, 1);
-					}
+        public MongoExpressionFactory exprFactory();
 
-					break;
-				case MongoStep.LIMIT:
-					if (null == limiter)
-						break;
+        public boolean hasQuery();
 
-					limiter.reset();
+        public void close();
+    }
 
-					if (step.getScalar().length == 2)
-						limiter.limit((Integer) step.getScalar()[0],
-								(Integer) step.getScalar()[1]);
-					else
-						limiter.count((Integer) step.getScalar()[0]);
+    //@FunctionalInterface
+    public static interface Injector {
+        /**
+         * @param step default return false, the default processing flow will be interrupted.
+         * @return
+         */
+        public boolean accept(Step step);
+    }
 
-					break;
-				case MongoStep.ORDER:
-					if (null == sorter)
-						break;
+    public static ParserResult parse(MongoEntity entity, Injector injector) throws AnalyzeBehaviourException {
+        final MongoExpressionFactory expFactory = new MongoExpressionFactory.Impl();
+        final Document genericFields = new Document();
+        final Document operationFields = new Document();
+        final Document projection = new Document();
+        final Limiter limiter = new Limiter.Default();
+        final Document sorter = new Document();
+        final Document options = new Document();
+        options.append(Options.RETAIN, false)
+                .append(Options.UPSERT, false).append(Options.BATCH_SIZE, 20);
 
-					int ord = 1;
-					if (step.getPurpose() != null)
-						ord = -1;
+        entity.getIntent().playback(new Tracer() {
 
-					String[] ordFs = (String[]) step.getScalar();
-					for (String f : ordFs) {
-						sorter.append(f, ord);
-					}
-					break;
+            public Tracer trace(Step step) throws AnalyzeBehaviourException {
+                // Allow interrupt the processing
+                if (null != injector && injector.accept(step))
+                    return this;
 
-				case MongoStep.PUT:
-					if (null == fields
-							|| StringUtils.isBlank(step.getPurpose()))
-						break;
+                switch (step.step()) {
+                    case MongoStep.FILTER:
+                        logger.debug("Putting filter ...");
 
-					Object val = (step.getScalar() == null || step.getScalar().length == 0) ? null
-							: step.getScalar()[0];
+                        if (null != step.getScalar())
+                            expFactory.addExpression((MongoExpression) step
+                                    .getScalar()[0]);
 
-					if (step.getPurpose().matches(MongoEntity.internalCmds))
-                        fields.append(step.getPurpose(), val);
-                    else
-                        othersFields.append(step.getPurpose(), val);
+                        break;
+                    case MongoStep.PROJECTION:
+                        if("doc".equals(step.getPurpose())){
+                            projection.putAll((Document)step.getScalar()[0]);
+                        } else {
+                            for (Object field : step.getScalar()) {
+                                String f = (String) field;
 
-					break;
-				case MongoStep.OPTION:
-					options.append(step.getPurpose(), step.getScalar()[0]);
-					break;
-				default:
+                                logger.debug("Projected field {0} ...", f);
+
+                                projection.append(f, 1);
+                            }
+                        }
+
+                        break;
+                    case MongoStep.LIMIT:
+                        if (null == limiter)
+                            break;
+
+                        limiter.reset();
+
+                        if (step.getScalar().length == 2)
+                            limiter.limit((Integer) step.getScalar()[0],
+                                    (Integer) step.getScalar()[1]);
+                        else
+                            limiter.count((Integer) step.getScalar()[0]);
+
+                        break;
+                    case MongoStep.ORDER:
+                        if (null == sorter)
+                            break;
+
+                        int ord = 1;
+                        if (step.getPurpose() != null)
+                            ord = -1;
+
+                        String[] ordFs = (String[]) step.getScalar();
+                        for (String f : ordFs) {
+                            sorter.append(f, ord);
+                        }
+                        break;
+
+                    case MongoStep.PUT:
+                        if (StringUtils.isBlank(step.getPurpose()))
+                            break;
+
+                        Object val = (step.getScalar() == null || step.getScalar().length == 0) ? null
+                                : step.getScalar()[0];
+
+                        if (step.getPurpose().matches(MongoEntity.internalCmds))
+                            operationFields.append(step.getPurpose(), val);
+                        else
+                            genericFields.append(step.getPurpose(), val);
+
+                        break;
+                    case MongoStep.OPTION:
+                        Intents.parseOption(step, options);
+                        break;
+                    default:
                         logger.warn(
-							"Step {0} does not apply to activities query, this step will be ignored.",
-							step.getName());
-				}
+                                "Step {0} does not apply to activities query, this step will be ignored.",
+                                step.getName());
+                }
 
-				return this;
-			}
+                return this;
+            }
 
-		});
+        });
 
-        if(!othersFields.isEmpty())
-            fields.append("$set", othersFields);
-	}
+        return new ParserResult() {
+            @Override
+            public Document genericFields() {
+                return genericFields;
+            }
+
+            @Override
+            public Document operationFields() {
+                return operationFields;
+            }
+
+            @Override
+            public Document projections() {
+                return projection;
+            }
+
+            @Override
+            public Limiter limiter() {
+                return limiter;
+            }
+
+            @Override
+            public Document sorter() {
+                return sorter;
+            }
+
+            @Override
+            public Document options() {
+                return options;
+            }
+
+            @Override
+            public MongoExpressionFactory exprFactory() {
+                return expFactory;
+            }
+
+            @Override
+            public boolean hasGenericFields() {
+                return !genericFields.isEmpty();
+            }
+
+            @Override
+            public boolean hasProjections() {
+                return !projection.isEmpty();
+            }
+
+            @Override
+            public boolean hasSorter() {
+                return !sorter.isEmpty();
+            }
+
+            @Override
+            public boolean hasQuery() {
+                return expFactory.hasQuery();
+            }
+
+            @Override
+            public void close() {
+                if (!options.containsKey(Options.RETURN_NEW) || !options.getBoolean(Options.RETURN_NEW))
+                    entity.getIntent().reset();
+
+                genericFields.clear();
+                operationFields.clear();
+                options.clear();
+                sorter.clear();
+                projection.clear();
+                expFactory.reset();
+            }
+        };
+    }
+
+    public static class Intents {
+        public static void parseOption(Step step, Document options) {
+            Object oVal = Options.ADD_CODEC.equals(step.getPurpose()) ? step.getScalar() : step.getScalar()[0];
+            options.append(step.getPurpose(), oVal);
+        }
+    }
 }

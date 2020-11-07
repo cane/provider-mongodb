@@ -15,21 +15,21 @@
  */
 package org.canedata.provider.mongodb.entity;
 
+import com.mongodb.BasicDBObject;
+import com.mongodb.ReadConcern;
+import com.mongodb.WriteConcern;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
 import org.canedata.cache.Cache;
-import org.canedata.core.intent.Intent;
 import org.canedata.core.logging.LoggerFactory;
 import org.canedata.core.util.StringUtils;
 import org.canedata.entity.Entity;
 import org.canedata.entity.EntityFactory;
 import org.canedata.logging.Logger;
 import org.canedata.provider.mongodb.MongoResource;
-import org.canedata.provider.mongodb.MongoResourceProvider;
 import org.canedata.provider.mongodb.intent.MongoIntent;
 import org.canedata.resource.Resource;
 import org.canedata.resource.ResourceProvider;
-
-import com.mongodb.DB;
-import com.mongodb.DBCollection;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -39,26 +39,26 @@ import java.util.Map;
  * @author Sun Yat-ton
  * @version 1.00.000 2011-8-1
  */
-public abstract class MongoEntityFactory implements EntityFactory {
+public abstract class MongoEntityFactory implements EntityFactory<MongoEntity> {
 	protected static final Logger logger = LoggerFactory
 			.getLogger(MongoEntityFactory.class);
 
 	abstract protected ResourceProvider getResourceProvider();
     abstract protected String getDefaultSchema();
 
-	public Entity get(String name) {
+	public MongoEntity get(String name) {
 		return get(null, null, name);
 	}
 
-	public Entity get(String schema, String name) {
+	public MongoEntity get(String schema, String name) {
 		return get(null, schema, name);
 	}
 
-	public Entity get(Resource<?> res, String name) {
+	public MongoEntity get(Resource<?> res, String name) {
 		return get(res, null, name);
 	}
 
-	public Entity get(final Resource<?> res, final String schema,
+	public MongoEntity get(final Resource<?> res, final String schema,
 			final String name) {
 		MongoResource mres = (MongoResource) res;
 		if (null == mres) {
@@ -69,11 +69,10 @@ public abstract class MongoEntityFactory implements EntityFactory {
         final String final_schema = StringUtils.isBlank(schema)?getDefaultSchema():schema;
 
 		return new MongoEntity() {
-            ThreadLocal<Map<String, DB>> lDb = new ThreadLocal<Map<String, DB>>();
+            ThreadLocal<Map<String, MongoDatabase>> lDb = new ThreadLocal<>();
 
-            DBCollection collection = null;
+            MongoCollection collection = null;
 
-			String cacheSchema = null;
 			String label = name;
             MongoIntent intent = new MongoIntent(this);
 
@@ -116,12 +115,12 @@ public abstract class MongoEntityFactory implements EntityFactory {
 					return;
 
 				hasClosed = true;
-                DB db = getDb(final_schema);
+				MongoDatabase db = getDb(final_schema);
 
 				if (null != db)
 					cres.release(db);
 
-                Map<String, DB> dbs = lDb.get();
+                Map<String, MongoDatabase> dbs = lDb.get();
                 dbs.remove(final_schema);
 			}
 
@@ -131,24 +130,24 @@ public abstract class MongoEntityFactory implements EntityFactory {
 			}
 
 			@Override
-			DBCollection getCollection() {
+			MongoCollection getCollection() {
                 if(null != collection)
                     return collection;
 
-                DB db = getDb(final_schema);
+				MongoDatabase db = getDb(final_schema);
 
                 collection = db.getCollection(name);
 				return collection;
 			}
 
-            private DB getDb(String schema){
-                Map<String, DB> dbs = lDb.get();
+            private MongoDatabase getDb(String schema){
+                Map<String, MongoDatabase> dbs = lDb.get();
                 if(null == dbs){
-                    dbs = new HashMap<String, DB>();
+                    dbs = new HashMap<String, MongoDatabase>();
                     lDb.set(dbs);
                 }
 
-                DB db = dbs.get(schema);
+				MongoDatabase db = dbs.get(schema);
                 if(null == db){
                     db = cres.take(schema);
 
@@ -163,21 +162,27 @@ public abstract class MongoEntityFactory implements EntityFactory {
 				return MongoEntityFactory.this;
 			}
 
+			/**
+			 * The caching strategy can be specified for each collection,
+			 * Or use the default strategy uniformly, if not specified.
+			 */
 			private String getCacheSchema() {
-				if (StringUtils.isBlank(cacheSchema))
-					cacheSchema = MongoEntityFactory.this.getName().concat(":")
+					return MongoEntityFactory.this.getName().concat(":")
 							.concat(getSchema()).concat(":").concat(getName());
-
-				return cacheSchema;
 			}
 
+			Cache cache = null;
 			@Override
 			Cache getCache() {
+				if(null != cache) return cache;
+
 				if (null == MongoEntityFactory.this.getCacheProvider())
 					return null;
 
-				return MongoEntityFactory.this.getCacheProvider().getCache(
+				cache = MongoEntityFactory.this.getCacheProvider().getCache(
 						getCacheSchema());
+
+				return cache;
 			}
 
 		};

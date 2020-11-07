@@ -21,8 +21,10 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.Date;
 
+import org.bson.Document;
 import org.canedata.entity.Entity;
 import org.canedata.field.Fields;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -31,13 +33,18 @@ import org.junit.Test;
  * @version 1.00.000 2011-8-5
  */
 public class TestCreate extends AbilityProvider {
+	@Before
+	public void setup(){
+		clear();
+	}
 	@Test
-	public void noid(){
+	public void autoGenId(){
 		Entity e = factory.get("user");
 		assertNotNull(e);
 		
 		Fields f = e.put("name", "cane").put("vendor", "cane team").create();
 		assertNotNull(f);
+
 		assertNotNull(f.get("_id"));
 		
 		e.close();

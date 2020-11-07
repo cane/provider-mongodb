@@ -20,6 +20,7 @@ import static org.junit.Assert.assertNotNull;
 
 import org.canedata.entity.Entity;
 import org.canedata.provider.mongodb.test.AbilityProvider;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -28,6 +29,11 @@ import org.junit.Test;
  * @version 1.00.000 2012-2-25
  */
 public class TestBetween extends AbilityProvider {
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void between(){
 		Entity e = factory.get("user");
@@ -43,7 +49,7 @@ public class TestBetween extends AbilityProvider {
 		assertNotNull(e);
 		
 		int c = e.filter(e.expr().between("name", "cane", "provider")).count().intValue();
-		assertEquals(c, 4L);
+		assertEquals(c, 5L);
 	}
 	
 }

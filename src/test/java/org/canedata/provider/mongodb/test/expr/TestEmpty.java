@@ -20,6 +20,7 @@ import static org.junit.Assert.assertNotNull;
 
 import org.canedata.entity.Entity;
 import org.canedata.provider.mongodb.test.AbilityProvider;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -28,6 +29,11 @@ import org.junit.Test;
  * @version 1.00.000 2012-2-25
  */
 public class TestEmpty extends AbilityProvider {
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void empty(){
 		Entity e = factory.get("user");

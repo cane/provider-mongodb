@@ -15,8 +15,14 @@
  */
 package org.canedata.provider.mongodb.entity;
 
+import org.bson.codecs.configuration.CodecRegistry;
+
 /**
- * 
+ * Remove option MONGO_OPTION, RESET_MONGO_OPTIONS, FIND_AND_REMOVE and add READ_CONCERN.
+ *
+ * @author Sun Yitao
+ * @version 1.1 2020-09-16
+ *
  * @author Sun Yat-ton
  * @version 1.00.000 2012-2-22
  */
@@ -53,7 +59,7 @@ public interface Options {
 	/**
 	 * boolean type, default is false.
 	 * If upsert is true, do upsert (insert if document not present).
-	 * use at {@link MongoEntity#update}, {@link MongoEntity#updateRange} and {@link MongoEntity#findAndUpdate}, such as: 
+	 * use at {@link MongoEntity#update}, {@link MongoEntity#updateRange} and {@link MongoEntity#findOneAndUpdate}, such as:
 	 * <pre>
 	 * e.opt(Options.UPSERT, true).findAndUpdate(...) 
 	 * ...
@@ -62,37 +68,29 @@ public interface Options {
 	 * If {@link #UPSERT} is true and {@link #RETURN_NEW} is false, may return NULL when the data does not exist.
 	 */
 	public static final String UPSERT = "upsert";
-	
-	/**
-	 * boolean type, default is false.  if true, document found will be removed.
-	 * 
-	 * use at findAndUpdate, such as:
-	 * <pre>
-	 * e.opt(Options.FIND_AND_REMOVE, true).findAndUpdate(...)
-	 * ...
-	 * </pre>
-	 */
-	public static final String FIND_AND_REMOVE = "findAndRemove";
 
     /**
-     * value is int.
-     * @see com.mongodb.DBCollection#addOption(int)
-     */
-    public static final String MONGO_OPTION = "mongoOption";
-
-    /**
-     * value is int.
-     * @see com.mongodb.DBCollection#resetOptions()
-     */
-    public static final String RESET_MONGO_OPTIONS = "resetOptions";
-
-    /**
-     * @see com.mongodb.DBCollection#setReadPreference(com.mongodb.ReadPreference)
+     * @see com.mongodb.client.MongoCollection#withReadPreference
      */
     public static final String READ_PREFERENCE = "readPreference";
 
+	/**
+	 * @see com.mongodb.client.MongoCollection#withCodecRegistry(CodecRegistry) 
+	 */
+	public static final String ADD_CODEC = "withCodec";
+
+	/**
+	 * @see com.mongodb.client.FindIterable#batchSize(int)
+	 */
+	public static final String BATCH_SIZE = "batchSize";
+
+	/**
+	 * @see com.mongodb.client.MongoCollection#withReadConcern
+	 */
+	public static final String READ_CONCERN = "readConcern";
+
     /**
-     * @see com.mongodb.DBCollection#setWriteConcern(com.mongodb.WriteConcern)
+     * @see com.mongodb.client.MongoCollection#withWriteConcern(com.mongodb.WriteConcern)
      */
     public static final String WRITE_CONCERN = "writeConcern";
 

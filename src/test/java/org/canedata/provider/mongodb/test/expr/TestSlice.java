@@ -16,7 +16,10 @@
 package org.canedata.provider.mongodb.test.expr;
 
 import com.mongodb.*;
-import com.mongodb.util.JSON;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import org.bson.Document;
 import org.canedata.entity.Command;
 import org.canedata.entity.Entity;
 import org.canedata.entity.EntityFactory;
@@ -24,8 +27,10 @@ import org.canedata.field.Fields;
 import org.canedata.provider.mongodb.entity.MongoEntity;
 import org.canedata.provider.mongodb.test.AbilityProvider;
 import org.canedata.resource.Resource;
+import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.Assert.*;
@@ -36,13 +41,18 @@ import static org.junit.Assert.*;
  * @version 1.00.000 2012-2-25
  */
 public class TestSlice extends AbilityProvider {
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void slice(){
 		MongoEntity e = (MongoEntity)factory.get("user");
 		assertNotNull(e);
 
-		BasicDBObject proj = new BasicDBObject();
-		proj.append("sub", new BasicDBObject().append("$slice", new Integer[]{1, 2}));
+		Document proj = new Document();
+		proj.append("sub", new BasicDBObject().append("$slice", Arrays.asList(1, 2)));//don't support new Integer[]{1, 2}
 
 
 		Fields rlt = e.projection(proj).filter(e.expr().equals("name", "multi")).first();
@@ -66,19 +76,19 @@ public class TestSlice extends AbilityProvider {
 			}
 
 			public <D> D execute(EntityFactory factory, Resource<?> res, Entity target, Object... args) {
-				Resource<DB> dbr = (Resource<DB>)res;
-				DB db = dbr.take();
+				Resource<MongoDatabase> dbr = (Resource<MongoDatabase>)res;
+				MongoDatabase db = dbr.take();
 
-				DBCollection collection = db.getCollection("user");
+				MongoCollection<Document> collection = db.getCollection("user");
 
 				BasicDBObject query = new BasicDBObject();
 				query.put("_id","multixxx");
 
-				DBCursor resultsCursor = collection.find(query, new BasicDBObject().append("sub", new BasicDBObject().append("$slice", new int[]{2, 2})));
+				/*FindIterable fi = collection.find(query, new BasicDBObject().append("sub", new BasicDBObject().append("$slice", new int[]{2, 2})));
 				while (resultsCursor.hasNext()) {
 					DBObject r = resultsCursor.next();
 					System.out.println(JSON.serialize(r));
-				}
+				}*/
 				return null;
 			}
 		});

@@ -54,18 +54,18 @@ public class TestExprFactory {
 	public void f() throws ParseExpressionException{
 		builder = new MongoExpressionBuilder(null);
 		MongoExpression equals = (MongoExpression)builder.equals("id", 1);
-		assertEquals(mef.addExpression(equals).toQuery().toString(), "{ \"id\" : 1}");
+		assertEquals(mef.addExpression(equals).toQuery().toString(), "{\"id\": 1}");
 		
 		builder = new MongoExpressionBuilder(null);
 		MongoExpression between = (MongoExpression)builder.reset().between("age", 18, 65);
-		assertEquals(mef.reset().addExpression(between).toQuery().toString(), "{ \"age\" : { \"$gte\" : 18 , \"$lte\" : 65}}");
+		assertEquals(mef.reset().addExpression(between).toQuery().toString(), "{\"age\": {\"$gte\": 18, \"$lte\": 65}}");
 		
 		builder = new MongoExpressionBuilder(null);
 		MongoExpression or = (MongoExpression)builder.reset().equals("id", 1).and().greaterThan("age", 18).or().lessThan("age", 65);
-		assertEquals(mef.reset().addExpression(or).toQuery().toString(), "{ \"$or\" : [ { \"id\" : 1 , \"age\" : { \"$gt\" : 18}} , { \"age\" : { \"$lt\" : 65}}]}");
+		assertEquals(mef.reset().addExpression(or).toQuery().toString(), "{\"$or\": [{\"id\": 1, \"age\": {\"$gt\": 18}}, {\"age\": {\"$lt\": 65}}]}");
 		
 		builder = new MongoExpressionBuilder(null);
 		MongoExpression ore = (MongoExpression)builder.reset().in("name", new Object[]{"kiv", "ddv"}).or(between);
-		assertEquals(mef.reset().addExpression(ore).toQuery().toString(), "{ \"$or\" : [ { \"name\" : { \"$in\" : [ \"kiv\" , \"ddv\"]}} , { \"age\" : { \"$gte\" : 18 , \"$lte\" : 65}}]}");
+		assertEquals(mef.reset().addExpression(ore).toQuery().toString(), "{\"$or\": [{\"name\": {\"$in\": [\"kiv\", \"ddv\"]}}, {\"age\": {\"$gte\": 18, \"$lte\": 65}}]}");
 	}
 }

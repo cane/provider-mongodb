@@ -20,7 +20,10 @@ import static org.junit.Assert.assertTrue;
 
 import org.bson.types.ObjectId;
 import org.canedata.entity.Entity;
+import org.canedata.expression.Expression;
 import org.canedata.field.Fields;
+import org.canedata.provider.mongodb.expr.MongoExpression;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -31,41 +34,40 @@ import org.junit.Test;
  */
 public class TestExist extends AbilityProvider {
 	static ObjectId id;
-	@BeforeClass
-	public static void init(){
+	@Before
+	public void init(){
+		clear();
+
 		Entity e = factory.get("user");
 		assertNotNull(e);
 	
 		Fields f = e.put("name", "cane").put("value", "v").create();
 		assertNotNull(f);
 		
-		id = f.get("_id");
-		
-		e.close();
+		id = (ObjectId)f.get("_id");
 	}
 	
 	@Test
 	public void existed(){
 		Entity e = factory.get("user");
 		assertNotNull(e);
-		
-		assertTrue(e.exists(id, "name", "value"));
-		assertTrue(e.exists(id));
-		assertTrue(e.exists(id, "name"));
-		assertTrue(e.exists(id, "value"));
-		
-		e.close();
+
+		Expression expr = e.expr().equals("_id", id);
+		assertTrue(e.filter(expr).exists("name", "value"));
+		assertTrue(e.filter(expr).exists("_id"));
+		assertTrue(e.filter(expr).exists("name"));
+		assertTrue(!e.filter(expr).exists("value-dddd"));
 	}
 	
 	@Test
 	public void notExisted(){
 		Entity e = factory.get("user");
 		assertNotNull(e);
-		
-		assertTrue(e.exists(id));
-		assertTrue(!e.exists(id, "gender"));
-		assertTrue(!e.exists(new ObjectId()));
-		
-		e.close();
+
+		Expression expr = e.expr().equals("_id", id);
+		assertTrue(e.filter(expr).exists());
+		assertTrue(!e.filter(expr).exists("gender"));
+		assertTrue(!e.filter(expr).exists("don-t-existed"));
+
 	}
 }

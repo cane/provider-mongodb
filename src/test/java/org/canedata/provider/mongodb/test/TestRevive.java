@@ -20,6 +20,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 import org.canedata.entity.Entity;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -28,12 +29,17 @@ import org.junit.Test;
  * @version 1.00.000 2011-8-17
  */
 public class TestRevive extends AbilityProvider {
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void closed(){
 		Entity e = factory.get("user");
 		assertNotNull(e);
 		
-		assertEquals(e.count(), 8l);
+		assertEquals(e.count(), 9l);
 		e.close();
 		
 		try{
@@ -48,12 +54,12 @@ public class TestRevive extends AbilityProvider {
 		Entity e = factory.get("user");
 		assertNotNull(e);
 		
-		assertEquals(e.count(), 8l);
+		assertEquals(e.count(), 9l);
 		e.close();
 		
 		try{
 			e.revive();
-			assertEquals(e.count(), 8l);
+			assertEquals(e.count(), 9l);
 		}catch(RuntimeException re){
 			assertNull(re);
 		}

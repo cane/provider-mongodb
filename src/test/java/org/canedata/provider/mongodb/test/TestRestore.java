@@ -22,11 +22,14 @@ import static org.junit.Assert.assertTrue;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Objects;
+import java.util.Optional;
 
 import org.bson.types.ObjectId;
 import org.canedata.entity.Entity;
 import org.canedata.exception.EntityNotFoundException;
 import org.canedata.field.Fields;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -35,6 +38,11 @@ import org.junit.Test;
  * @version 1.00.000 2011-8-17
  */
 public class TestRestore extends AbilityProvider {
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void strId(){
 		Entity e = factory.get("user");
@@ -50,13 +58,14 @@ public class TestRestore extends AbilityProvider {
 		Entity e = factory.get("user");
 		assertNotNull(e);
 
-		Fields f = e.put("name", "cane").put("vendor", "cane team").create();
+		Fields f = e.put("name", "cane").put("vendor", "cane team").put("desc", "test all fields").create();
 		assertNotNull(f);
 		assertNotNull(f.get("_id"));
 
-		Fields rlt = e.restore((ObjectId)f.get("_id"));
+		ObjectId o = f.get("_id");
+		Fields rlt = e.restore(o);
 
-		assertEquals(f.get("_id"), rlt.get("_id"));
+		assertTrue(o.compareTo(rlt.get("_id")) == 0);
 		assertEquals(rlt.getString("name"), "cane");
 		assertEquals(rlt.getString("vendor"), "cane team");
 		
@@ -72,9 +81,10 @@ public class TestRestore extends AbilityProvider {
 		assertNotNull(f);
 		assertNotNull(f.get("_id"));
 
-		Fields rlt = e.projection("name").restore((ObjectId)f.get("_id"));
+		ObjectId id = f.get("_id");
+		Fields rlt = e.projection("name").restore(id);
 
-		assertEquals(f.get("_id"), rlt.get("_id"));
+		assertEquals(f.get("_id").toString(), rlt.get("_id").toString());
 		assertEquals(rlt.getString("name"), "cane");
 		assertNull(rlt.getString("vendor"));
 		
@@ -97,7 +107,8 @@ public class TestRestore extends AbilityProvider {
 		Date d = new Date();
 		
 		Fields r = e.put("date", d).create();
-		Fields f = e.restore((ObjectId)r.get("_id"));
+		ObjectId id = r.get("_id");
+		Fields f = e.restore(id);
 		assertNotNull(f);
 		
 		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm");

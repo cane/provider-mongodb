@@ -22,6 +22,7 @@ import java.util.List;
 
 import org.canedata.entity.Entity;
 import org.canedata.field.Fields;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -30,6 +31,11 @@ import org.junit.Test;
  * @version 1.00.000 2011-8-23
  */
 public class TestLimit extends AbilityProvider {
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void limit(){
 		Entity e = factory.get("user");

@@ -17,10 +17,11 @@
 package org.canedata.provider.mongodb.test;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.util.JSON;
 import org.canedata.entity.Entity;
 import org.canedata.field.Fields;
+import org.canedata.provider.mongodb.entity.MongoEntity;
 import org.canedata.provider.mongodb.entity.Options;
+import org.junit.Before;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
@@ -31,51 +32,40 @@ import static junit.framework.Assert.assertNull;
  * @author Sun Yat-ton
  * @version 1.00.000 2013-09-29
  */
-public class TestFindAndUpdate extends AbilityProvider {
+public class TestFindOneAndUpdate extends AbilityProvider {
     private static final String ENTITY = "user";
     private static final String ID = "id:test:1";
 
+    @Before
+    public void setup() {
+        initData();
+    }
 
     @Test
     public void update() {
         Thread t1 = new Thread(new Runnable() {
             public void run() {
                 Entity e = factory.get(ENTITY);
-                try {
-                    Fields rlt = e.put("age", 17).opt(Options.RETURN_NEW, true).findAndUpdate(e.expr().equals("name", "mongo"));
-                    assertNotNull(rlt);
-                    assertEquals(rlt.getInt("age"), 17);
-                } finally {
-                    if (null != e)
-                        e.close();
-                }
+                Fields rlt = e.put("age", 17).opt(Options.RETURN_NEW, true).findOneAndUpdate(e.expr().equals("name", "mongo"));
+                assertNotNull(rlt);
+                assertEquals(rlt.getInt("age"), 17);
 
             }
         });
         Thread t2 = new Thread(new Runnable() {
             public void run() {
                 Entity e = factory.get(ENTITY);
-                try {
-                    Fields rlt = e.put("age", 18).opt(Options.RETURN_NEW, true).findAndUpdate(e.expr().equals("name", "mongo"));
-                    assertNotNull(rlt);
-                    assertEquals(rlt.getInt("age"), 18);
-                } finally {
-                    if (null != e)
-                        e.close();
-                }
+                Fields rlt = e.put("age", 18).opt(Options.RETURN_NEW, true).findOneAndUpdate(e.expr().equals("name", "mongo"));
+                assertNotNull(rlt);
+                assertEquals(rlt.getInt("age"), 18);
 
             }
         });
         Thread t3 = new Thread(new Runnable() {
             public void run() {
                 Entity e = factory.get(ENTITY);
-                try {
-                    Fields rlt = e.put("age", 19).opt(Options.RETURN_NEW, true).findAndUpdate(e.expr().equals("name", "mongo"));
-                    assertEquals(rlt.getInt("age"), 19);
-                } finally {
-                    if (null != e)
-                        e.close();
-                }
+                Fields rlt = e.put("age", 19).opt(Options.RETURN_NEW, true).findOneAndUpdate(e.expr().equals("name", "mongo"));
+                assertEquals(rlt.getInt("age"), 19);
 
             }
         });
@@ -98,14 +88,9 @@ public class TestFindAndUpdate extends AbilityProvider {
     public void inc(){
         Entity e = factory.get(ENTITY);
 
-        try{
-            Fields rlt = e.opt(Options.RETURN_NEW, true).put("$inc", new BasicDBObject().append("age", 1)).findAndUpdate(e.expr().equals("_id", "id:test:2"));
-            assertNotNull(rlt);
-            assertEquals(rlt.getInt("age"), 14);
-        }finally {
-            if(null != e)
-                e.close();
-        }
+        Fields rlt = e.opt(Options.RETURN_NEW, true).put("$inc", new BasicDBObject().append("age", 1)).findOneAndUpdate(e.expr().equals("_id", "id:test:2"));
+        assertNotNull(rlt);
+        assertEquals(rlt.getInt("age"), 14);
     }
 
     @Test
@@ -113,26 +98,16 @@ public class TestFindAndUpdate extends AbilityProvider {
         Thread t1 = new Thread(new Runnable() {
             public void run() {
                 Entity e = factory.get(ENTITY);
-                try {
-                    Fields rlt = e.restore(ID);
-                    assertEquals(rlt.getInt("age"), 13);
-                } finally {
-                    if (null != e)
-                        e.close();
-                }
+                Fields rlt = e.restore(ID);
+                assertEquals(rlt.getInt("age"), 13);
 
             }
         });
         Thread t2 = new Thread(new Runnable() {
             public void run() {
-                Entity e = factory.get(ENTITY);
-                try {
-                    Fields rlt = e.opt(Options.FIND_AND_REMOVE, true).findAndUpdate(e.expr().equals("_id", ID));
-                    assertEquals(rlt.getInt("age"), 13);
-                } finally {
-                    if (null != e)
-                        e.close();
-                }
+                MongoEntity e = factory.get(ENTITY);
+                Fields rlt = e.findOneAndDelete(e.expr().equals("_id", ID));//e.opt(Options.FIND_AND_REMOVE, true).findAndUpdate(e.expr().equals("_id", ID));
+                assertEquals(rlt.getInt("age"), 13);
 
             }
         });
@@ -149,13 +124,8 @@ public class TestFindAndUpdate extends AbilityProvider {
         }
 
         Entity e = factory.get(ENTITY);
-        try {
-            Fields rlt = e.restore(ID);
+        Fields rlt = e.restore(ID);
 
-            assertNull(rlt);
-        } finally {
-            if (null != e)
-                e.close();
-        }
+        assertNull(rlt);
     }
 }

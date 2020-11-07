@@ -20,6 +20,7 @@ import static org.junit.Assert.assertNotNull;
 
 import org.canedata.entity.Entity;
 import org.canedata.field.Fields;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -28,6 +29,11 @@ import org.junit.Test;
  * @version 1.00.000 2011-8-16
  */
 public class TestFirst extends AbilityProvider {
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void f(){
 		Entity e = factory.get("user");

@@ -17,10 +17,13 @@ package org.canedata.provider.mongodb.test;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.text.MessageFormat;
 import java.util.Properties;
 import java.util.logging.LogManager;
 
 import com.mongodb.*;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
 import org.canedata.CaneProvider;
 import org.canedata.entity.Command;
 import org.canedata.entity.Entity;
@@ -28,6 +31,8 @@ import org.canedata.entity.EntityFactory;
 import org.canedata.provider.mongodb.MongoProvider;
 import org.canedata.provider.mongodb.MongoResourceProvider;
 import org.canedata.provider.mongodb.command.Truncate;
+import org.canedata.provider.mongodb.entity.MongoEntity;
+import org.canedata.provider.mongodb.entity.Options;
 
 /**
  * 
@@ -38,7 +43,7 @@ public abstract class AbstractAbility {
 	protected static MongoClient mongo = null;
 	protected static CaneProvider provider = null;
 	protected static MongoResourceProvider resProvider = null;
-	protected static EntityFactory factory = null;
+	protected static EntityFactory<MongoEntity> factory = null;
 	
 	protected static String host = "localhost";
 	protected static int port = 27017;
@@ -69,9 +74,7 @@ public abstract class AbstractAbility {
 	
 	protected void initProvider(){
 		try {
-			mongo = new MongoClient(host, port);
-		} catch (UnknownHostException e) {
-			throw new RuntimeException(e);
+			mongo = MongoClients.create("mongodb://192.168.10.10:27017");
 		} catch (MongoException e) {
 			throw new RuntimeException(e);
 		}
@@ -85,16 +88,19 @@ public abstract class AbstractAbility {
 	protected void initFactory(){
 		factory = provider.getFactory("test", resProvider);
 	}
-	
-	protected void initData(){
+
+	protected void clear(){
 		Command truncate = new Truncate();
-		
+
 		factory.get("t").call(truncate);
-        factory.get("list").call(truncate);
-		
+		factory.get("list").call(truncate);
+		Entity e = factory.get("user").execute(truncate);
+	}
+	protected void initData(){
+		clear();
 		Entity e = factory.get("user");
-		e.execute(truncate);
-		
+
+		e.opt(Options.WRITE_CONCERN, WriteConcern.ACKNOWLEDGED);
 		e.put("age", 13).put("4up", null).put("4inc", 1).create("id:test:1");
 		e.put("age", 13).put("4up", "").put("4inc", 1).create("id:test:2");
 		e.put("age", 13).put("4up", "dd").put("4inc", 1).create("id:test:3");
@@ -112,7 +118,5 @@ public abstract class AbstractAbility {
 			sub.add(row);
 		}
 		e.put("name","multi").put("sub", sub).create("multixxx");
-
-		e.close();
 	}
 }

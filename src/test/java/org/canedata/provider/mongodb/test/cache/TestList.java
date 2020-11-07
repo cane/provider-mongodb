@@ -16,9 +16,17 @@
 package org.canedata.provider.mongodb.test.cache;
 
 import com.mongodb.BasicDBList;
+import com.mongodb.BasicDBObject;
+import com.mongodb.DBObject;
+import com.mongodb.client.model.Updates;
+import org.bson.Document;
 import org.canedata.entity.Entity;
 import org.canedata.field.Fields;
+import org.junit.Before;
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -29,6 +37,11 @@ import static org.junit.Assert.*;
  * @version 1.00.000 2011-9-2
  */
 public class TestList extends CacheAbilityProvider {
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void list() {
 
@@ -37,14 +50,22 @@ public class TestList extends CacheAbilityProvider {
 
 		String id = "id:test:1";
 
-		e.put("f", new String[]{"a","b"}).createOrUpdate(id);//invalidate cache
+		//e.put("f", new String[]{"a","b"}).createOrUpdate(id);//invalidate cache
+		List<String> dbList = new ArrayList<>();
+
+		dbList.add("a");
+		dbList.add("b");
+		e.put("c", new BasicDBObject().append("key", "value"));
+		e.put("f", dbList).createOrUpdate(id);
+
+
 		
 		Fields f = e.restore(id);
 		assertTrue(!f.isRestored());
-        BasicDBList b = f.get("f");
+        ArrayList b = (ArrayList)f.get("f");
 		assertEquals(b.get(0), "a");
         assertEquals(b.get(1), "b");
 
-		e.close();
+        assert f.get("c") instanceof Document;
 	}
 }

@@ -18,7 +18,10 @@ package org.canedata.provider.mongodb.test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+import com.mongodb.WriteConcern;
 import org.canedata.entity.Entity;
+import org.canedata.provider.mongodb.entity.Options;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -27,12 +30,17 @@ import org.junit.Test;
  * @version 1.00.000 2011-8-17
  */
 public class TestDelete extends AbilityProvider {
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void dById(){
 		Entity e = factory.get("user");
 		assertNotNull(e);
 		
-		int c = e.delete("id:test:1");
+		long c = e.delete("id:test:1");
 		assertEquals(c, 1);
 	}
 	
@@ -41,7 +49,16 @@ public class TestDelete extends AbilityProvider {
 		Entity e = factory.get("user");
 		assertNotNull(e);
 		
-		int c = e.deleteRange(e.expr().like("name", "cane"));
+		long c = e.deleteRange(e.expr().like("name", "cane"));
 		assertEquals(c, 2);
+	}
+
+	@Test
+	public void testOptions() {
+		Entity e = factory.get("user");
+		assertNotNull(e);
+
+		long c = e.opt(Options.WRITE_CONCERN, WriteConcern.MAJORITY).deleteRange(e.expr().like("name", "cane"));
+		// assertEquals(c, 2);
 	}
 }

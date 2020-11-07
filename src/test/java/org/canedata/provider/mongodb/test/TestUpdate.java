@@ -23,6 +23,7 @@ import java.util.Date;
 
 import org.canedata.entity.Entity;
 import org.canedata.field.Fields;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.mongodb.BasicDBObject;
@@ -33,12 +34,17 @@ import com.mongodb.BasicDBObject;
  * @version 1.00.000 2011-8-17
  */
 public class TestUpdate extends AbilityProvider{
+	@Before
+	public void setup() {
+		initData();
+	}
+
 	@Test
 	public void uById(){
 		Entity e = factory.get("user");
 		assertNotNull(e);
 		
-		int c = e.put("$inc", new BasicDBObject().append("age", 19)).put("4up", "4up").put("upd", 12).update("id:test:1");
+		long c = e.put("$inc", new BasicDBObject().append("age", 19)).put("4up", "4up").put("upd", 12).update("id:test:1");
 		assertEquals(c, 1);
 		
 		Fields f = e.restore("id:test:1");
@@ -52,7 +58,7 @@ public class TestUpdate extends AbilityProvider{
 		Entity e = factory.get("user");
 		assertNotNull(e);
 		
-		int c = e.put("upd2", new Date()).put("$inc", new BasicDBObject().append("4inc", 1)).updateRange(e.expr().like("name", "cane"));
+		long c = e.put("upd2", new Date()).put("$inc", new BasicDBObject().append("4inc", 1)).updateRange(e.expr().like("name", "cane"));
 		assertEquals(c, 2);
 		
 	}
@@ -62,7 +68,7 @@ public class TestUpdate extends AbilityProvider{
 		Entity e = factory.get("user");
 		assertNotNull(e);
 		
-		int c = e.put("$unset", new BasicDBObject().append("4up", null)).update("id:test:1");
+		long c = e.put("$unset", new BasicDBObject().append("4up", null)).update("id:test:1");
 		assertEquals(c, 1);
 		
 		Fields f = e.restore("id:test:1");

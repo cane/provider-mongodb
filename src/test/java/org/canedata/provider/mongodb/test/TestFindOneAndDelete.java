@@ -16,12 +16,9 @@
 
 package org.canedata.provider.mongodb.test;
 
-import com.mongodb.BasicDBObject;
-import org.canedata.entity.Entity;
 import org.canedata.expression.Expression;
 import org.canedata.field.Fields;
 import org.canedata.provider.mongodb.entity.MongoEntity;
-import org.canedata.provider.mongodb.entity.Options;
 import org.junit.Before;
 import org.junit.Test;
 

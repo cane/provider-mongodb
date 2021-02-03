@@ -16,8 +16,6 @@
 package org.canedata.provider.mongodb.test;
 
 import java.io.IOException;
-import java.net.UnknownHostException;
-import java.text.MessageFormat;
 import java.util.Properties;
 import java.util.logging.LogManager;
 
@@ -74,7 +72,10 @@ public abstract class AbstractAbility {
 	
 	protected void initProvider(){
 		try {
-			mongo = MongoClients.create("mongodb://192.168.10.10:27017");
+			ConnectionString cs = new ConnectionString("mongodb://192.168.10.10:27017");
+			MongoClientSettings mcs = MongoClientSettings.builder().retryWrites(false).applyConnectionString(cs).build();
+
+			mongo = MongoClients.create(mcs);
 		} catch (MongoException e) {
 			throw new RuntimeException(e);
 		}

@@ -15,20 +15,10 @@
  */
 package org.canedata.provider.mongodb.test.cache;
 
-import org.canedata.cache.Cacheable;
-import org.canedata.core.cache.StringCacheableWrapped;
-import org.canedata.module.ehcache.EhcacheEventListener;
 import org.canedata.module.ehcache.EhcacheProvider;
 import org.canedata.provider.mongodb.MongoProvider;
 import org.canedata.provider.mongodb.test.AbstractAbility;
-import org.ehcache.Cache;
-import org.ehcache.event.CacheEvent;
-import org.ehcache.event.EventFiring;
-import org.ehcache.event.EventOrdering;
-import org.ehcache.event.EventType;
 import org.junit.BeforeClass;
-
-import javax.sound.midi.Soundbank;
 
 /**
  *
@@ -49,37 +39,6 @@ public class CacheAbilityProvider extends AbstractAbility {
 
     @Override
     protected void initFactory() {
-        cp.registerCacheEventListener(new EhcacheEventListener<String, Cacheable>() {
-            @Override
-            public boolean match(String schema) {
-                return true;
-            }
-
-            @Override
-            public void init(String schema, Cache cache) {
-                System.out.println("registerCacheEventListener: " + schema);
-            }
-
-            @Override
-            public EventOrdering getOrdering() {
-                return EventOrdering.ORDERED;
-            }
-
-            @Override
-            public EventFiring getFiring() {
-                return EventFiring.SYNCHRONOUS;
-            }
-
-            @Override
-            public EventType[] getTypes() {
-                return new EventType[]{EventType.CREATED, EventType.REMOVED, EventType.EXPIRED, EventType.UPDATED};
-            }
-
-            @Override
-            public void onEvent(CacheEvent<? extends String, ? extends Cacheable> cacheEvent) {
-                System.out.println(cacheEvent.getType()+ ": "+cacheEvent.getKey());
-            }
-        });
         provider = new MongoProvider();
         factory = provider.getFactory("test@cache", resProvider, cp);
     }

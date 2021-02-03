@@ -20,15 +20,11 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import org.bson.Document;
 import org.canedata.entity.Entity;
 import org.canedata.field.Fields;
 import org.canedata.provider.mongodb.entity.Options;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * 

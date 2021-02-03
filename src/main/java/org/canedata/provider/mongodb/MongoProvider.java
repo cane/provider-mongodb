@@ -40,7 +40,7 @@ import org.canedata.resource.ResourceProvider;
  * @author Sun Yat-ton
  * @version 1.00.000 2011-8-1
  */
-public class MongoProvider implements CaneProvider {
+public class MongoProvider implements CaneProvider<MongoEntityFactory> {
 	final static Logger logger = LoggerFactory.getLogger(MongoProvider.class);
 
 	private static String NAME = "Cane provider for MongoDB";
@@ -52,13 +52,13 @@ public class MongoProvider implements CaneProvider {
 		extras.put("api-level", 1);
 	}
 	
-	public EntityFactory getFactory(String name,
+	public MongoEntityFactory getFactory(String name,
 			ResourceProvider resourceProvider) {
 		CacheProvider cp = null;
 		return getFactory(name, resourceProvider, cp);
 	}
 
-	public EntityFactory getFactory(String name,
+	public MongoEntityFactory getFactory(String name,
 			final ResourceProvider resourceProvider, final CacheProvider cache) {
 		if (StringUtils.isBlank(name))
 			name = "MF:" + this.hashCode();

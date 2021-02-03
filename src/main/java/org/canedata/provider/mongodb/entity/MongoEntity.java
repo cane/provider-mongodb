@@ -15,14 +15,8 @@
  */
 package org.canedata.provider.mongodb.entity;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.ReadConcern;
-import com.mongodb.ReadPreference;
-import com.mongodb.WriteConcern;
-import com.mongodb.client.DistinctIterable;
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
+import com.mongodb.*;
+import com.mongodb.client.*;
 import com.mongodb.client.model.*;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.InsertOneResult;
@@ -62,10 +56,11 @@ import org.canedata.provider.mongodb.field.MongoFields;
 import org.canedata.provider.mongodb.field.MongoWritableField;
 import org.canedata.provider.mongodb.intent.MongoIntent;
 import org.canedata.provider.mongodb.intent.MongoStep;
+import org.canedata.provider.mongodb.ta.MongoTransaction;
 import org.canedata.ta.Transaction;
+import org.canedata.ta.TransactionException;
 import org.canedata.ta.TransactionHolder;
 
-import javax.sound.midi.Soundbank;
 import java.io.Serializable;
 import java.math.BigInteger;
 import java.util.*;
@@ -210,7 +205,13 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             if (!intents.options().isEmpty())
                 prepareOptions(intents.options());
 
-            InsertOneResult rlt = prepareCollection(intents.options()).insertOne(doc);
+            ClientSession cs = getTx() != null?getTx().getSession():null;
+            InsertOneResult rlt = null;
+            MongoCollection<Document> collection = prepareCollection(intents.options());
+            if(null == cs)
+                rlt = collection.insertOne(doc);
+            else
+                rlt = collection.insertOne(cs, doc);
 
             if (key == null)
                 doc.put("_id", rlt.getInsertedId().asObjectId().getValue());
@@ -621,7 +622,6 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             Object key = dbo.get("_id");
             String cacheKey = genKey(key);
             if (useCache) {
-                System.out.println("cache key:"+cacheKey+", "+getCache().isAlive(cacheKey));
                 if (getCache().isAlive(cacheKey)) {// load from cache
                     MongoFields mf = (MongoFields) getCache().restore(
                             cacheKey);
@@ -1337,7 +1337,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
 
                 if (logger.isDebug())
                     logger.debug("Invalidated cache key is {0}.",
-                            key.toString());
+                            genKey(key));
             }
 
             return rlt.getModifiedCount();
@@ -1520,46 +1520,106 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * @deprecated UnsupportedOperation
-     */
+    ThreadLocal<MongoTransaction> transactionThreadLocal = new ThreadLocal<>();
+    private MongoTransaction getTx() {
+        return transactionThreadLocal.get();
+    }
+    public Transaction openTransaction(TransactionOptions options) {
+        MongoTransaction mta = transactionThreadLocal.get();
+        if (null == mta) {
+            mta = new MongoTransaction() {
+                MongoClient mongo = getResource().unwrap(MongoClient.class);
+                ClientSession session = mongo.startSession();
+
+                @Override
+                public ClientSession getSession() {
+                    return session;
+                }
+            };
+
+            transactionThreadLocal.set(mta);
+        }
+
+        if(null == options)
+            mta.getSession().startTransaction();
+        else
+            mta.getSession().startTransaction(options);
+
+        if(logger.isDebug())
+        logger.debug("Open transaction {0} ...", mta.hashCode());
+        return mta;
+    }
+
     public Transaction openTransaction() {
-        throw new UnsupportedOperationException();
+        TransactionOptions txnOptions = TransactionOptions.builder()
+                .readPreference(ReadPreference.primary())
+                .readConcern(ReadConcern.LOCAL)
+                .writeConcern(WriteConcern.MAJORITY)
+                .build();
+
+        return openTransaction(txnOptions);
     }
 
-    /**
-     * @deprecated UnsupportedOperation
-     */
-    public Entity transaction() {
-        throw new UnsupportedOperationException();
+    public Transaction transaction() {
+        return openTransaction();
     }
 
-    /**
-     * @deprecated UnsupportedOperation
-     */
-    public Entity transaction(TransactionHolder holder) {
-        throw new UnsupportedOperationException();
+    public Transaction transaction(TransactionOptions options) {
+        return openTransaction(options);
     }
 
-    /**
-     * @deprecated UnsupportedOperation
-     */
-    public Entity rollback() {
-        throw new UnsupportedOperationException();
+    public Transaction transaction(TransactionHolder holder) {
+        Transaction mta = openTransaction();
+
+        if (null != holder)
+            holder.hold(mta);
+
+        return mta;
     }
 
-    /**
-     * @deprecated UnsupportedOperation
-     */
-    public Entity commit() {
-        throw new UnsupportedOperationException();
+    public void rollback() {
+        MongoTransaction mta = transactionThreadLocal.get();
+        if(null == mta)
+            throw new RuntimeException("Don`t exist transaction.");
+
+        if(logger.isDebug())
+            logger.debug("rollback transaction: {0}", mta.hasClosed());
+
+        try {
+            mta.rollback();
+        } catch (TransactionException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    /**
-     * @deprecated UnsupportedOperation
-     */
-    public Entity end(boolean expr) {
-        throw new UnsupportedOperationException();
+    public void commit() {
+        MongoTransaction mta = transactionThreadLocal.get();
+        if(null == mta)
+            throw new RuntimeException("Don`t exist transaction.");
+
+        if(logger.isDebug())
+            logger.debug("commit transaction: {0}", mta.hasClosed());
+
+        try {
+            mta.commit();
+        } catch (TransactionException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void end(boolean expr) {
+        MongoTransaction mta = transactionThreadLocal.get();
+        if(null == mta)
+            throw new RuntimeException("Don`t exist transaction.");
+
+        try {
+            if (expr)
+                mta.commit();
+            else
+                mta.rollback();
+        } catch (TransactionException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public <D> D execute(Command cmd, Object... args) {
@@ -1578,7 +1638,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
     }
 
     /**
-     * @see org.canedata.provider.mongodb.entity.Options
+     * @see Options
      * @see org.canedata.entity.Entity#opt(java.lang.String,
      * java.lang.Object[])
      */
@@ -1640,7 +1700,7 @@ public abstract class MongoEntity extends Cacheable.Adapter implements Entity {
             logger.debug("Invalidate cache({0}), for {1} ...", query.toString(), hit_count);
             while(cursor.hasNext()) {
                 String key = cursor.next().get("_id").toString();
-                String cacheKey = getKey().concat("#").concat(key);
+                String cacheKey = genKey(key);//getKey().concat("#").concat(key);
                 getCache().remove(cacheKey);
 
                 if (logger.isDebug())

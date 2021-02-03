@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import com.mongodb.ClientSessionOptions;
+import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoDatabase;
 import org.bson.codecs.Codec;
@@ -52,7 +54,7 @@ public abstract class MongoResource implements Resource<MongoDatabase> {
 	abstract MongoResourceProvider getProvider();
 
 	public boolean isWrappedFor(Class<?> iface) {
-		return iface.isInstance(this);
+		return iface.isInstance(getMongo());
 	}
 
 	public <T> T unwrap(Class<T> iface) {

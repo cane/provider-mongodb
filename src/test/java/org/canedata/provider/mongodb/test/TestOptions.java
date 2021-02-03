@@ -18,20 +18,14 @@ package org.canedata.provider.mongodb.test;
 
 import com.mongodb.*;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoDatabase;
-import org.canedata.entity.Command;
 import org.canedata.entity.Entity;
-import org.canedata.entity.EntityFactory;
 import org.canedata.field.Fields;
-import org.canedata.provider.mongodb.MongoResource;
 import org.canedata.provider.mongodb.entity.MongoEntity;
 import org.canedata.provider.mongodb.entity.Options;
-import org.canedata.resource.Resource;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Method;
-import java.util.List;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
@@ -52,11 +46,11 @@ public class TestOptions extends AbilityProvider {
     public void findAndUpdateAndReturnNew() throws Exception {
         Entity e = factory.get(ENTITY);
         try {
-            Fields neu = e.put("age", 18).put("name", "rnew").opt(Options.RETURN_NEW, true).findOneAndUpdate(e.expr().equals("_id", "id:test:1"));
+            Fields neu = e.put("age", 18).put("name", "r new").opt(Options.RETURN_NEW, true).findOneAndUpdate(e.expr().equals("_id", "id:test:1"));
 
             assertEquals(neu.getString("_id"), "id:test:1");
             assertEquals(neu.getInt("age"), 18);
-            assertEquals(neu.getString("name"), "rnew");
+            assertEquals(neu.getString("name"), "r new");
         } finally {
             if (null != e)
                 e.close();

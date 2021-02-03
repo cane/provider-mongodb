@@ -99,4 +99,9 @@ public interface Options {
      * then the cache is invalid during current operation.
      */
     public static final String CACHEABLE = "cacheable";
+
+	/**
+	 * com.mongodb.TransactionOptions
+	 */
+	public static final String TRANSACTION_OPTIONS = "tx_options";
 }
